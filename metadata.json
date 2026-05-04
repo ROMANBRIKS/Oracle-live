@@ -1,0 +1,6 @@
+{
+  "name": "Oracle Live",
+  "description": "Unified mobile/web application combining a TikTok-style video feed with live streaming capabilities.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": []
+}
