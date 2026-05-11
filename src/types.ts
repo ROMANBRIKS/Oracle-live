@@ -3,6 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export interface VideoPost {
+  id: string;
+  author: string;
+  caption: string;
+  music: string;
+  likes: string;
+  commentsCount: string;
+  shares: string;
+  videoUrl: string;
+  category?: string;
+  comments?: {
+    id: string;
+    author: string;
+    text: string;
+    createdAt: string;
+  }[];
+}
+
 export interface User {
   uid: string;
   username: string;
@@ -13,20 +31,6 @@ export interface User {
   followersCount: number;
   followingCount: number;
   totalLikes: number;
-}
-
-export interface Post {
-  id: string;
-  authorId: string;
-  authorName: string;
-  authorAvatar: string;
-  videoUrl: string;
-  thumbnailUrl: string;
-  caption: string;
-  likes: string[]; // array of uids
-  commentsCount: number;
-  sharesCount: number;
-  createdAt: number;
 }
 
 export interface LiveSession {

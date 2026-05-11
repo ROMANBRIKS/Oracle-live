@@ -1,164 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-accent: var(--color-orange-500);
-  --color-accent-foreground: var(--color-white);
-  
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-glass-white: rgba(255, 255, 255, 0.15);
+  --color-glass-border: rgba(255, 255, 255, 0.3);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.2);
+  --shadow-glass-inner: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
-@layer base {
-  body {
-    @apply bg-slate-950 text-white antialiased;
+@utility crystal-glass {
+  background: rgba(34, 211, 238, 0.01);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  
+  /* 
+     3D SLAB ENGINE 
+     Defining "The Edge" on all sides through high-precision refractive light.
+  */
+  box-shadow: 
+    /* 1. Footprint: Deep ambient occlusion so the glass looks "on top" */
+    0 55px 130px rgba(0, 0, 0, 0.65),
+    
+    /* 2. THE RIM: 1px sharp perimeter definition (Physical Boundary) */
+    0 0 0 1.5px rgba(255, 255, 255, 0.2),
+    
+    /* 3. PRIMARY HIGHLIGHT (Top-Left): The "Diamond Cut" sharp edge hit */
+    inset 6px 6px 0px rgba(255, 255, 255, 0.9),
+    
+    /* 4. SURFACE GLOSS: Large glossy refraction across the top-left */
+    inset 40px 40px 55px rgba(255, 255, 255, 0.3),
+    
+    /* 5. REFRACTIVE DEPTH (All Sides): Simulating the thick crystal edge "wall" */
+    inset 0 0 50px rgba(0, 0, 0, 0.35),
+    
+    /* 6. BOTTOM CAVITY: Dark heavy depth on bottom-right */
+    inset -40px -40px 60px rgba(0, 0, 0, 0.55),
+    
+    /* 7. PRISMATIC GLOW: The "Sea Blue" internal dispersion pulse */
+    inset -12px -12px 30px rgba(34, 211, 238, 0.45),
+    
+    /* 8. EXIT SPARKLE: Polished counter-hit on the bottom-right corner */
+    inset -2px -2px 0px rgba(255, 255, 255, 0.6);
+  
+  position: relative;
+  overflow: hidden;
+
+  /* High-Gloss Surface Lensing */
+  &::after {
+    content: "";
+    position: absolute;
+    top: 2%;
+    left: 8%;
+    width: 84%;
+    height: 40%;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.2), transparent);
+    border-radius: 50% / 100% 100% 0 0;
+    pointer-events: none;
+    opacity: 0.9;
   }
 }
 
-.frosted-glass {
-  @apply bg-black/40 backdrop-blur-md border border-white/10;
-}
-
-.frosted-glass-heavy {
-  @apply bg-white/5 backdrop-blur-xl border border-white/20;
-}
-
-@keyframes spin-slow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
+@utility crystal-glow-teal {
+  /* This simulates the internal cyan dispersion seen in the Nike icons */
+  &::before {
+    content: "";
+    position: absolute;
+    bottom: -15%;
+    right: -15%;
+    width: 70%;
+    height: 70%;
+    background: radial-gradient(circle at center, rgba(34, 211, 238, 0.2), transparent 70%);
+    filter: blur(25px);
+    pointer-events: none;
   }
 }
 
-.animate-spin-slow {
-  animation: spin-slow 8s linear infinite;
-}
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
-
-@custom-variant dark (&:is(.dark *));
-
-@theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
-    --color-sidebar-ring: var(--sidebar-ring);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar: var(--sidebar);
-    --color-chart-5: var(--chart-5);
-    --color-chart-4: var(--chart-4);
-    --color-chart-3: var(--chart-3);
-    --color-chart-2: var(--chart-2);
-    --color-chart-1: var(--chart-1);
-    --color-ring: var(--ring);
-    --color-input: var(--input);
-    --color-border: var(--border);
-    --color-destructive: var(--destructive);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-accent: var(--accent);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-muted: var(--muted);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-secondary: var(--secondary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-primary: var(--primary);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-popover: var(--popover);
-    --color-card-foreground: var(--card-foreground);
-    --color-card: var(--card);
-    --color-foreground: var(--foreground);
-    --color-background: var(--background);
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
+@utility crystal-pill {
+  @apply crystal-glass rounded-[40px] crystal-glow-teal;
 }
 
-:root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+@utility crystal-button {
+  @apply crystal-glass rounded-[24px] active:scale-95 transition-all cursor-pointer flex items-center justify-center crystal-glow-teal;
 }
 
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+@utility liquid-glass {
+  background: rgba(30, 30, 40, 0.55);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  box-shadow: 
+    0 10px 30px -8px rgba(0, 0, 0, 0.4),
+    0 0 0 0.5px rgba(255, 255, 255, 0.2) inset,
+    0 0 0 1.5px rgba(255, 255, 255, 0.08) inset,
+    0 -2px 4px rgba(0, 0, 0, 0.2) inset;
+  border: none;
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-    }
-  body {
-    @apply bg-background text-foreground;
-    }
-  html {
-    @apply font-sans;
-    }
+@utility liquid-pill {
+  @apply liquid-glass rounded-[2.5rem];
+}
+
+@utility liquid-button {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: white;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  border: 0.5px solid rgba(255, 255, 255, 0.25);
+  @apply transition-all active:scale-95;
+}
+
+@utility bg-crystal-void {
+  /* High contrast background to make glass pop */
+  background: radial-gradient(circle at top left, #0ea5e9, #0f172a 40%, #1e1b4b 100%);
+  position: relative;
+  min-height: 100vh;
+}
+
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #000;
+  color: #fff;
+  overscroll-behavior-y: none;
+}
+
+/* Custom transitions */
+.fade-enter {
+  opacity: 0;
+}
+.fade-enter-active {
+  opacity: 1;
+  transition: opacity 300ms ease-in;
+}
+
+/* Mobile-friendly scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 10px;
 }

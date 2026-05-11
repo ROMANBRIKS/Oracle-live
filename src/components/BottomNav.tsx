@@ -1,54 +1,101 @@
-import { Home, Search, PlusSquare, PlayCircle, User } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import React from "react";
+import { Home as HomeIcon, Video, Users, ShieldAlert, LogOut, Trophy, BarChart3, Wallet as WalletIcon } from "lucide-react";
 
-export default function BottomNav() {
-  const location = useLocation();
+interface BottomNavProps {
+  page: string;
+  setPage: (page: string) => void;
+  openLeaderboard: () => void;
+  user: any;
+}
 
-  const navItems = [
-    { icon: Home, label: "Home", path: "/" },
-    { icon: Search, label: "Discover", path: "/discover" },
-    { icon: PlusSquare, label: "Upload", path: "/upload", isSpecial: true },
-    { icon: PlayCircle, label: "Live", path: "/live" },
-    { icon: User, label: "Profile", path: "/profile" },
-  ];
+const BottomNav: React.FC<BottomNavProps> = ({ page, setPage, openLeaderboard, user }) => {
+  const isAdmin = user?.role === "admin";
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 h-16 bg-black/60 backdrop-blur-lg border-t border-white/10 flex items-center justify-around px-4 z-50">
-      {navItems.map((item) => {
-        const Icon = item.icon;
-        const isActive = location.pathname === item.path;
+    <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[98%] max-w-[620px] liquid-glass flex justify-around items-center py-5 px-3 z-50 rounded-[2.8rem]">
+      {isAdmin && (
+        <button 
+          onClick={() => setPage("admin")}
+          className={`flex flex-col items-center gap-1 transition-all ${page === 'admin' ? 'text-emerald-500 scale-110' : 'text-white/40 hover:text-white'}`}
+          style={{ background: 'none', padding: 0 }}
+        >
+          <div className={`p-2 rounded-2xl transition-all ${page === 'admin' ? 'bg-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : ''}`}>
+            <ShieldAlert size={18} strokeWidth={page === 'admin' ? 2.5 : 2} />
+          </div>
+          <span className="text-[8px] font-black uppercase tracking-widest mt-1">Admin</span>
+        </button>
+      )}
+      <button 
+        onClick={() => setPage("home")}
+        className={`flex flex-col items-center gap-1 transition-all ${page === 'home' ? 'text-white scale-110' : 'text-white/40 hover:text-white'}`}
+        style={{ background: 'none', padding: 0 }}
+      >
+        <div className={`p-2 rounded-2xl transition-all ${page === 'home' ? 'bg-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)]' : ''}`}>
+          <HomeIcon size={18} strokeWidth={page === 'home' ? 2.5 : 2} />
+        </div>
+        <span className="text-[8px] font-black uppercase tracking-widest mt-1">Home</span>
+      </button>
 
-        if (item.isSpecial) {
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className="relative flex items-center justify-center w-12 h-8"
-            >
-              <div className="absolute inset-0 bg-cyan-400 rounded-lg -translate-x-1" />
-              <div className="absolute inset-0 bg-orange-500 rounded-lg translate-x-1" />
-              <div className="absolute inset-0 bg-white rounded-lg flex items-center justify-center">
-                <Icon className="w-6 h-6 text-black" />
-              </div>
-            </Link>
-          );
-        }
+      <button 
+        onClick={openLeaderboard}
+        className="flex flex-col items-center gap-1 text-white/40 hover:text-white transition-all active:text-yellow-400"
+        style={{ background: 'none', padding: 0 }}
+      >
+        <div className="p-2">
+          <Trophy size={18} />
+        </div>
+        <span className="text-[8px] font-black uppercase tracking-widest mt-1">Rank</span>
+      </button>
 
-        return (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={cn(
-              "flex flex-col items-center justify-center space-y-1 transition-colors",
-              isActive ? "text-orange-500" : "text-white/40"
-            )}
-          >
-            <Icon className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
-          </Link>
-        );
-      })}
+      <button 
+        onClick={() => setPage("wallet")}
+        className={`flex flex-col items-center gap-1 transition-all ${page === 'wallet' ? 'text-white scale-110' : 'text-white/40 hover:text-white'}`}
+        style={{ background: 'none', padding: 0 }}
+      >
+        <div className={`p-2 rounded-2xl transition-all ${page === 'wallet' ? 'bg-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)]' : ''}`}>
+          <WalletIcon size={18} strokeWidth={page === 'wallet' ? 2.5 : 2} />
+        </div>
+        <span className="text-[8px] font-black uppercase tracking-widest mt-1">Wallet</span>
+      </button>
+
+      <button 
+        onClick={() => setPage("live")}
+        className={`
+          w-14 h-14 rounded-full flex items-center justify-center transition-all relative
+          ${page === 'live' ? 'bg-white text-black shadow-[0_0_25px_rgba(255,255,255,0.5)]' : 'bg-white/10 text-white border border-white/10 hover:bg-white/20'}
+        `}
+        style={{ padding: 0 }}
+      >
+        <Video size={22} className="relative z-10" />
+        {page === 'live' && (
+          <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-20" />
+        )}
+      </button>
+
+      <button 
+        onClick={() => setPage("dashboard")}
+        className={`flex flex-col items-center gap-1 transition-all ${page === 'dashboard' ? 'text-white scale-110' : 'text-white/40 hover:text-white'}`}
+        style={{ background: 'none', padding: 0 }}
+      >
+        <div className={`p-2 rounded-2xl transition-all ${page === 'dashboard' ? 'bg-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)]' : ''}`}>
+          <BarChart3 size={18} strokeWidth={page === 'dashboard' ? 2.5 : 2} />
+        </div>
+        <span className="text-[8px] font-black uppercase tracking-widest mt-1">Stats</span>
+      </button>
+      
+      <button 
+        onClick={() => setPage("agency")}
+        className={`flex flex-col items-center gap-1 transition-all ${page === 'agency' ? 'text-white scale-110' : 'text-white/40 hover:text-white'}`}
+        style={{ background: 'none', padding: 0 }}
+      >
+        <div className={`p-2 rounded-2xl transition-all ${page === 'agency' ? 'bg-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)]' : ''}`}>
+          <Users size={18} strokeWidth={page === 'agency' ? 2.5 : 2} />
+        </div>
+        <span className="text-[8px] font-black uppercase tracking-widest mt-1">Agency</span>
+      </button>
+
     </nav>
   );
-}
+};
+
+export default BottomNav;
