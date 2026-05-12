@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { CreditCard, History, Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, ChevronRight, Plus, RefreshCw, Shield } from "lucide-react";
+import { CreditCard, History, Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, ChevronRight, Plus, RefreshCw, Shield, Landmark } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useNavigate } from "react-router-dom";
 import CryptoWallet from "../components/CryptoWallet";
 
 interface Transaction {
@@ -26,6 +27,7 @@ interface WalletProps {
 }
 
 function Wallet({ onWithdraw }: WalletProps) {
+  const navigate = useNavigate();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [history, setHistory] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,8 @@ function Wallet({ onWithdraw }: WalletProps) {
   const userId = user?.id || "";
 
   const fetchData = async () => {
-    if (!userId) return;
+    const token = localStorage.getItem("token");
+    if (!userId || !token) return;
     setLoading(true);
     try {
       // Use "me" shortcut to ensure we get the data for the authenticated user
@@ -137,7 +140,7 @@ function Wallet({ onWithdraw }: WalletProps) {
           
           <div className="flex gap-4">
             <button 
-              onClick={() => (window as any).setPage("kyc")}
+              onClick={() => navigate("/kyc")}
               className="flex-1 liquid-button border-blue-500/30 py-4 rounded-3xl flex flex-col items-center justify-center gap-2 active:scale-95 transition-all text-[10px] font-black uppercase tracking-wider"
             >
               <Shield size={20} className="text-blue-400" />
@@ -158,6 +161,27 @@ function Wallet({ onWithdraw }: WalletProps) {
               Convert
             </button>
           </div>
+        </div>
+
+        {/* Fiat Payout Option */}
+        <div className="mb-8 px-2">
+            <button 
+              onClick={() => navigate("/fiat-withdraw")}
+              className="w-full bg-white text-black p-6 rounded-[2.5rem] flex items-center justify-between group hover:scale-[1.01] transition-all"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-black/10 rounded-2xl flex items-center justify-center">
+                  <Landmark size={24} className="text-black" />
+                </div>
+                <div className="text-left">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-black/40 leading-none mb-1">Modern Payout</p>
+                  <h3 className="text-xl font-black italic uppercase tracking-tighter">Bank / MoMo Payout</h3>
+                </div>
+              </div>
+              <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center group-hover:bg-black/10 transition-colors">
+                <ChevronRight size={20} />
+              </div>
+            </button>
         </div>
 
         {/* Wallet Tabs */}
@@ -252,7 +276,7 @@ function Wallet({ onWithdraw }: WalletProps) {
               Recent Transactions
             </h3>
             <button 
-              onClick={() => (window as any).setPage("transactions")}
+              onClick={() => navigate("/transactions")}
               className="text-[10px] font-black uppercase tracking-widest text-cyan-400 hover:text-white transition-colors"
             >
               View Blockchain Ledger

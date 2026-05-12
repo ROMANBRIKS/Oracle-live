@@ -32,6 +32,16 @@ import treasuryRoutes from "./server/routes/treasuryRoutes";
 import pkRoutes from "./server/routes/pkRoutes";
 import moderationRoutes from "./server/routes/moderationRoutes";
 import blockchainRoutes from "./server/routes/blockchainRoutes";
+import fiatWithdrawalRoutes from "./server/routes/fiatWithdrawalRoutes";
+import staffAdminRoutes from "./server/routes/staffAdminRoutes";
+import adminsManagementRoutes from "./server/routes/adminsManagementRoutes";
+import adminTreasuryRoutes from "./server/routes/adminTreasuryRoutes";
+import recommendationRoutes from "./server/routes/recommendationRoutes";
+import clipRoutes from "./server/routes/clipRoutes";
+import hlsRoutes from "./server/routes/hlsRoutes";
+import giftRoutes from "./server/routes/giftRoutes";
+import leaderboardRoutes from "./server/routes/leaderboardRoutes";
+import multiGuestRoutes from "./server/routes/multiGuestRoutes";
 import { initSocket, getIO } from "./server/socket/socketServer";
 import { sendGift } from "./server/controllers/giftController";
 import { processPKTick } from "./server/controllers/pkController";
@@ -45,83 +55,114 @@ const SECRET = process.env.JWT_SECRET || "oracle_secret_fallback";
 async function startServer() {
   const app = express();
   const httpServer = createServer(app);
-  const io = initSocket(httpServer);
   const PORT = 3000;
 
-  console.log("Starting server setup... NODE_ENV:", process.env.NODE_ENV);
-
-  // Rate Limiting
-  const limiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 100,
-    message: { error: "Too many requests, please try again later." }
+  // 1. LISTEN IMMEDIATELY - This bypasses the "Please wait..." screen
+  httpServer.on('error', (e) => {
+    console.error('SERVER ERROR:', e);
   });
-  app.use(limiter);
 
-  app.use(helmet({
-    contentSecurityPolicy: false,
-  }));
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 INSTANT BOOT: Server listening on http://0.0.0.0:${PORT}`);
+  });
+
+  // 2. Initial Setup
+  console.log("Initializing Socket.io...");
+  const io = initSocket(httpServer);
+  console.log("Middlewares...");
   app.use(compression());
   app.use(cors());
   app.use(express.json());
+  
+  // Basic Health check available immediately
+  app.get("/api/health", (req, res) => res.json({ 
+    status: "active", 
+    mode: process.env.GOOGLE_CLIENT_ID ? "production" : "demo",
+    time: new Date() 
+  }));
 
-  // Health check
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "alive", time: new Date() });
+  // 3. Heavy Route & Vite Registration (Non-blocking)
+  console.log("Loading routes...");
+  
+  app.use(helmet({ contentSecurityPolicy: false }));
+  
+  const limiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    message: { error: "Too many requests" }
+  });
+  app.use(limiter);
+
+  // Modular Routes
+  const routes = [
+    ["/api/users", userRoutes], ["/api/coins", coinRoutes], ["/api/rec", recRoutes],
+    ["/api/agencies", agencyRoutes], ["/api/admin", adminRoutes], ["/api/agora", agoraRoutes],
+    ["/api/analytics", analyticsRoutes], ["/api/payments", paymentRoutes], ["/api/crypto", cryptoRoutes],
+    ["/api/wallets", walletRoutes], ["/api/wallet", walletRoutes], ["/api/growth", growthRoutes],
+    ["/api/withdrawals", withdrawalRoutes], ["/api/admin/withdrawals", adminWithdrawalRoutes],
+    ["/api/notifications", notificationRoutes], ["/api/kyc", kycRoutes], ["/api/treasury", treasuryRoutes],
+    ["/api/pk", pkRoutes], ["/api/moderation", moderationRoutes], ["/api/blockchain", blockchainRoutes],
+    ["/api/fiat", fiatWithdrawalRoutes], ["/api/staff-admin", staffAdminRoutes],
+    ["/api/admins", adminsManagementRoutes], ["/api/admin", adminTreasuryRoutes],
+    ["/api/recommendations", recommendationRoutes], ["/api/clips", clipRoutes],
+    ["/api/hls", hlsRoutes], ["/api/gifts", giftRoutes], ["/api/leaderboard", leaderboardRoutes],
+    ["/api/multi-guest", multiGuestRoutes]
+  ];
+
+  routes.forEach(([path, handler]) => {
+    try {
+        app.use(path as string, handler as any);
+    } catch (e) {
+        console.error(`Failed to load route ${path}:`, e);
+    }
   });
 
-  // 📁 MODULAR ROUTES
-  app.use("/api/users", userRoutes);
-  app.use("/api/coins", coinRoutes);
-  app.use("/api/rec", recRoutes);
-  app.use("/api/agencies", agencyRoutes);
-  app.use("/api/admin", adminRoutes);
-  app.use("/api/agora", agoraRoutes);
-  app.use("/api/analytics", analyticsRoutes);
-  app.use("/api/payments", paymentRoutes);
-  app.use("/api/crypto", cryptoRoutes);
-  app.use("/api/wallets", walletRoutes);
-  app.use("/api/growth", growthRoutes);
-  app.use("/api/withdrawals", withdrawalRoutes);
-  app.use("/api/admin/withdrawals", adminWithdrawalRoutes);
-  app.use("/api/notifications", notificationRoutes);
-  app.use("/api/kyc", kycRoutes);
-  app.use("/api/treasury", treasuryRoutes);
-  app.use("/api/pk", pkRoutes);
-  app.use("/api/moderation", moderationRoutes);
-  app.use("/api/blockchain", blockchainRoutes);
   app.use("/uploads", express.static("uploads"));
 
-  // 🔔 SEND NOTIFICATION
-  function sendNotification(userId: string | "all", message: string) {
-    io.emit("notification", {
-      userId,
-      message,
-      time: new Date(),
+  // Vite Engine
+  if (process.env.NODE_ENV !== "production") {
+    console.log("Starting Vite Dev Server...");
+    createViteServer({ 
+      server: { middlewareMode: true, hmr: false }, 
+      appType: "spa" 
+    }).then(vite => {
+      app.use(vite.middlewares);
+      console.log("✅ Vite Ready.");
+    }).catch(err => {
+      console.error("VITE INITIALIZATION FAILED:", err);
     });
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath, { maxAge: "1d", etag: true, index: false }));
+    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
-  // Remaining APIs (Will move fully later as needed)
-  app.post("/api/send-gift", (req, res) => {
-    sendGift(req, res);
-    const { userId, giftType } = req.body;
-    sendNotification("host1", `${userId} sent a ${giftType} 🎁`);
-  });
-
-  // 🔴 SOCKET.IO LOGIC removed - moved to server/socket/socketServer.ts
-
-  // PK Timer
+  // Background Ticks
   setInterval(() => {
-    const io = getIO();
-    processPKTick(io);
+    try {
+        const socketIO = getIO();
+        if (socketIO) {
+            processPKTick(socketIO);
+        }
+    } catch (e) {
+        // Silently fail if IO not ready
+    }
   }, 1000);
 
-  // GOOGLE OAUTH (Cleanup later)
+  // GOOGLE OAUTH
   app.get("/api/auth/google/url", (req, res) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      return res.json({ 
+        url: `${process.env.APP_URL || "http://localhost:3000"}/auth/callback/google/mock`,
+        isDemo: true 
+      });
+    }
+
     const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
     const options = {
       redirect_uri: `${process.env.APP_URL || "http://localhost:3000"}/auth/callback/google`,
-      client_id: process.env.GOOGLE_CLIENT_ID || "",
+      client_id: clientId,
       access_type: "offline",
       response_type: "code",
       prompt: "consent",
@@ -131,12 +172,39 @@ async function startServer() {
     res.json({ url: `${rootUrl}?${qs.toString()}` });
   });
 
+  app.get("/auth/callback/google/mock", async (req, res) => {
+    console.log("[DEMO MODE] Bypassing Google OAuth. Creating demo session.");
+    const demoUser = {
+      id: "demo_user_" + Date.now(),
+      email: "demo@example.com",
+      name: "Demo User",
+      picture: "https://i.pravatar.cc/150?u=demo"
+    };
+
+    // Insert or update demo user in DB
+    db.prepare("INSERT OR IGNORE INTO users (id, email, username, name, avatar_url, coins) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(demoUser.id, demoUser.email, "demouser", demoUser.name, demoUser.picture, 1000);
+
+    const token = jwt.sign(demoUser, SECRET, { expiresIn: "7d" });
+    res.redirect(`${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/success?token=${token}`);
+  });
+
   app.get("/auth/callback/google", async (req, res) => {
     const code = req.query.code as string;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      return res.status(500).send("Google OAuth is not fully configured on this server.");
+    }
+
     try {
       const { data } = await axios.post("https://oauth2.googleapis.com/token", {
-        code, client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: `${process.env.APP_URL || "http://localhost:3000"}/auth/callback/google`, grant_type: "authorization_code",
+        code, 
+        client_id: clientId, 
+        client_secret: clientSecret,
+        redirect_uri: `${process.env.APP_URL || "http://localhost:3000"}/auth/callback/google`, 
+        grant_type: "authorization_code",
       });
       const { id_token, access_token } = data;
       const googleUser = await axios.get(`https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${access_token}`, {
@@ -153,7 +221,6 @@ async function startServer() {
         db.prepare("INSERT INTO users (id, username, email, password, role) VALUES (?, ?, ?, ?, ?)").run(id, username, email, "google-auth-no-pass", role);
         user = { id, username, email, role };
       } else {
-        // Upgrade to admin if email matches
         if (email === "irionguard@gmail.com" && user.role !== "admin") {
           db.prepare("UPDATE users SET role = 'admin' WHERE email = ?").run(email);
           user.role = "admin";
@@ -165,22 +232,9 @@ async function startServer() {
       res.send(`<html><body><script>window.opener.postMessage(${JSON.stringify(authResponse)}, "*"); window.close();</script></body></html>`);
     } catch (err) { res.status(500).send("Google Auth Failed"); }
   });
-
-  app.get("/api/videos", (req, res) => {
-    res.json([{ id: 1, url: "https://www.w3schools.com/html/mov_bbb.mp4", user: "User1" }, { id: 2, url: "https://www.w3schools.com/html/movie.mp4", user: "User2" }]);
-  });
-
-  // Vite
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
-  }
-
-  httpServer.listen(PORT, "0.0.0.0", () => console.log(`Server running on http://localhost:${PORT}`));
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("CRITICAL BOOT FAILURE:", err);
+  process.exit(1);
+});

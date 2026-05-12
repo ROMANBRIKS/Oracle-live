@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { BarChart3, TrendingUp, Users, DollarSign, Gift, Calendar, ChevronRight } from "lucide-react";
+import { BarChart3, TrendingUp, Users, DollarSign, Gift, Calendar, ChevronRight, PieChart, Landmark, Film } from "lucide-react";
 import { motion } from "motion/react";
+import { useNavigate } from "react-router-dom";
 
 interface AnalyticsData {
-  id: number;
-  viewers: number;
+  id: string;
+  total_viewers: number;
   likes: number;
-  gifts: number;
-  earnings: number;
-  followers_gained: number;
+  total_gifts: number;
+  total_coins: number;
+  new_followers: number;
   created_at: string;
 }
 
 function CreatorDashboard() {
   const [stats, setStats] = useState<AnalyticsData[]>([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
@@ -24,7 +26,7 @@ function CreatorDashboard() {
   useEffect(() => {
     if (!streamerId) return;
 
-    axios.get(`/api/analytics/${streamerId}`)
+    axios.get(`/api/analytics/streamer/${streamerId}`)
       .then((res) => {
         setStats(res.data);
         setLoading(false);
@@ -37,10 +39,10 @@ function CreatorDashboard() {
 
   const totals = stats.reduce(
     (acc, curr) => ({
-      views: acc.views + curr.viewers,
-      earnings: acc.earnings + curr.earnings,
-      followers: acc.followers + curr.followers_gained,
-      gifts: acc.gifts + curr.gifts
+      views: acc.views + (curr.total_viewers || 0),
+      earnings: acc.earnings + (curr.total_coins || 0),
+      followers: acc.followers + (curr.new_followers || 0),
+      gifts: acc.gifts + (curr.total_gifts || 0)
     }),
     { views: 0, earnings: 0, followers: 0, gifts: 0 }
   );
@@ -64,9 +66,32 @@ function CreatorDashboard() {
           <div className="p-3 bg-pink-500/10 rounded-2xl">
             <BarChart3 className="text-pink-500 w-8 h-8" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold tracking-tight">Creator Dashboard</h1>
             <p className="text-zinc-500 text-sm">Monitor your channel's growth and performance</p>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => navigate("/creator/analytics")}
+              className="bg-zinc-900 border border-zinc-800 p-3 rounded-2xl hover:bg-zinc-800 transition-all group"
+              title="Full Analytics"
+            >
+              <PieChart size={20} className="text-zinc-400 group-hover:text-cyan-400" />
+            </button>
+            <button 
+              onClick={() => navigate("/creator/revenue")}
+              className="bg-zinc-900 border border-zinc-800 p-3 rounded-2xl hover:bg-zinc-800 transition-all group"
+              title="Revenue Center"
+            >
+              <Landmark size={20} className="text-zinc-400 group-hover:text-emerald-400" />
+            </button>
+            <button 
+              onClick={() => navigate("/creator/clips")}
+              className="bg-zinc-900 border border-zinc-800 p-3 rounded-2xl hover:bg-zinc-800 transition-all group"
+              title="Clips Archive"
+            >
+              <Film size={20} className="text-zinc-400 group-hover:text-pink-400" />
+            </button>
           </div>
         </div>
 
@@ -121,19 +146,19 @@ function CreatorDashboard() {
                   <div className="space-y-1">
                     <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Views</p>
                     <p className="font-bold flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-zinc-400" /> {stream.viewers}
+                      <Users className="w-4 h-4 text-zinc-400" /> {stream.total_viewers}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Earnings</p>
+                    <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Coins</p>
                     <p className="font-bold text-green-500 flex items-center gap-1.5">
-                      <DollarSign className="w-4 h-4" /> {stream.earnings}
+                      <DollarSign className="w-4 h-4" /> {stream.total_coins}
                     </p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Growth</p>
                     <p className="font-bold text-purple-500 flex items-center gap-1.5">
-                      <TrendingUp className="w-4 h-4" /> +{stream.followers_gained}
+                      <TrendingUp className="w-4 h-4" /> +{stream.new_followers}
                     </p>
                   </div>
                 </div>

@@ -24,6 +24,10 @@ To reverse these changes:
 - [ ] Modify the design
 - [ ] Modify the designs
 
+## Data & Infrastructure Rules (CRITICAL)
+- [ ] NO FULL RECORDING: We do NOT record entire streams. Save only short user-initiated clips (10-15 seconds).
+- [ ] CLIP OVER REPLAY: The "Replay" system is now a "Clips" system.
+
 ## Notes on the Design
 - **Crystal-Glass (Diamond Cut)**: `border: 7px solid white/80; inset shadow: 14px bevel; blur: 5px; center-opacity: 0.5%;`
 - **Volume**: Massive 120px outer shadow and 20px primary light hit (bevel).

@@ -37,12 +37,12 @@ const BottomNav: React.FC<BottomNavProps> = ({ page, setPage, openLeaderboard, u
       </button>
 
       <button 
-        onClick={openLeaderboard}
-        className="flex flex-col items-center gap-1 text-white/40 hover:text-white transition-all active:text-yellow-400"
+        onClick={() => setPage("leaderboard")}
+        className={`flex flex-col items-center gap-1 transition-all ${page === 'leaderboard' ? 'text-white scale-110' : 'text-white/40 hover:text-white'}`}
         style={{ background: 'none', padding: 0 }}
       >
-        <div className="p-2">
-          <Trophy size={18} />
+        <div className={`p-2 rounded-2xl transition-all ${page === 'leaderboard' ? 'bg-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)]' : ''}`}>
+          <Trophy size={18} strokeWidth={page === 'leaderboard' ? 2.5 : 2} />
         </div>
         <span className="text-[8px] font-black uppercase tracking-widest mt-1">Rank</span>
       </button>

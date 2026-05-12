@@ -9,14 +9,17 @@ export const getWallets = (req: any, res: any) => {
   }
 
   try {
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+    let user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+    
+    // If not found in users, check if it's a staff admin
     if (!user) {
-      // Log for server-side debugging (visible in logs if reachable)
-      console.error(`Wallet fetch failed: User ${userId} not found in DB`);
-      return res.status(404).json({ 
-        error: "User not found", 
-        userId,
-        sessionUserId: req.user?.userId 
+      user = db.prepare("SELECT * FROM staff_admins WHERE id = ?").get(userId) as any;
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        error: "Wallet not found",
+        details: `User or Staff with ID ${userId} does not exist.`
       });
     }
 
@@ -34,7 +37,16 @@ export const getWallets = (req: any, res: any) => {
         sol: user.crypto_sol || 0,
         bnb: user.crypto_bnb || 0,
         trx: user.crypto_trx || 0
-      }
+      },
+      // PHASE 6.4 - Dedicated Creator Wallet fields
+      creator_wallet: db.prepare("SELECT * FROM creator_wallets WHERE user_id = ?").get(userId) || null,
+      // For compatibility with the requested UI dashboard structure
+      ...(db.prepare("SELECT * FROM creator_wallets WHERE user_id = ?").get(userId) as any || {
+          available_usd: 0,
+          pending_usd: 0,
+          total_earnings_usd: 0,
+          total_withdrawn_usd: 0
+      })
     });
   } catch (error: any) {
     console.error("Wallet Balance Error:", error);

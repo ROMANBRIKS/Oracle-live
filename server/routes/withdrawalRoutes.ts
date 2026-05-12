@@ -8,11 +8,58 @@ import { sendCrypto } from "../utils/blockchainEngine";
 
 const router = express.Router();
 
-// CREATE WITHDRAWAL
+// REQUEST WITHDRAWAL
 router.post("/request", async (req, res) => {
   try {
-    const { userId, amount, currency, method, walletAddress } = req.body;
+    const { userId, method, amountUsd, cryptoType, walletAddress, bankDetails } = req.body;
 
+    const creatorWallet = db.prepare("SELECT * FROM creator_wallets WHERE user_id = ?").get(userId) as any;
+
+    // If it's a creator withdrawal (has amountUsd), check creator_wallets
+    if (amountUsd) {
+        if (!creatorWallet || creatorWallet.available_usd < amountUsd) {
+          return res.status(400).json({ message: "Insufficient balance for withdrawal" });
+        }
+
+        // Deduct from available balance
+        db.prepare(`
+          UPDATE creator_wallets 
+          SET available_usd = available_usd - ?, 
+              total_withdrawn_usd = total_withdrawn_usd + ?,
+              updated_at = CURRENT_TIMESTAMP 
+          WHERE user_id = ?
+        `).run(amountUsd, amountUsd, userId);
+
+        // Create withdrawal record
+        const result = db.prepare(`
+          INSERT INTO withdrawals (
+            user_id, amount, method, crypto_type, wallet_address, 
+            bank_name, account_number, account_name, status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          userId, 
+          amountUsd, 
+          method, 
+          cryptoType || null, 
+          walletAddress || null,
+          bankDetails?.bankName || null,
+          bankDetails?.accountNumber || null,
+          bankDetails?.accountName || null,
+          'pending'
+        );
+
+        return res.json({
+          success: true,
+          withdrawalId: result.lastInsertRowid,
+        });
+    }
+
+    // FALLBACK TO EXISTING CRYPTO LOGIC IF amountUsd NOT PRESENT
+    const { amount, currency } = req.body;
+    if (!amount || !currency) {
+         return res.status(400).json({ message: "Invalid withdrawal parameters" });
+    }
+    
     const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
 
     if (!user) {
@@ -128,6 +175,12 @@ router.post("/admin/refill", async (req, res) => {
 
 // GET USER WITHDRAWALS
 router.get("/user/:userId", (req, res) => {
+  const withdrawals = db.prepare("SELECT * FROM withdrawals WHERE user_id = ? ORDER BY created_at DESC").all(req.params.userId);
+  res.json(withdrawals);
+});
+
+// PHASE 6.4 - Withdrawal History route for UI
+router.get("/history/:userId", (req, res) => {
   const withdrawals = db.prepare("SELECT * FROM withdrawals WHERE user_id = ? ORDER BY created_at DESC").all(req.params.userId);
   res.json(withdrawals);
 });

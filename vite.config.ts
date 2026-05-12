@@ -10,6 +10,31 @@ export default defineConfig(({mode}) => {
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom', 'react-router-dom', 'axios', 'motion'],
+            agora: ['agora-rtc-sdk-ng'],
+            ui: ['lucide-react', 'recharts']
+          }
+        }
+      },
+      chunkSizeWarningLimit: 1000,
+      target: 'esnext'
+    },
+    optimizeDeps: {
+      include: [
+        'react', 
+        'react-dom', 
+        'react-router-dom', 
+        'axios', 
+        'motion', 
+        'agora-rtc-sdk-ng', 
+        'recharts', 
+        'lucide-react'
+      ]
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),

@@ -1,6 +1,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let aiInstance: GoogleGenAI | null = null;
+const getAI = () => {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not defined in environment.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+};
 
 export interface StreamItem {
   id: string;
@@ -13,6 +23,7 @@ export interface StreamItem {
 
 export const getAIRecommendations = async (userInterests: string[], availableStreams: StreamItem[]) => {
   try {
+    const ai = getAI();
     const prompt = `
       User likes: ${userInterests.join(", ")}.
       Available streams: ${JSON.stringify(availableStreams)}.

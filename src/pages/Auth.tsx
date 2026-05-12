@@ -26,9 +26,13 @@ function Auth({ setUser }: { setUser: (user: string) => void }) {
       const res = await axios.get("/api/auth/google/url");
       const { url } = res.data;
       window.open(url, "google_auth", "width=500,height=600");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Failed to initiate Google login");
+      if (err.response?.status === 400 && err.response?.data?.error === "Google OAuth not configured") {
+        alert("Google Login is not configured yet. Please use standard login or contact admin.");
+      } else {
+        alert("Failed to initiate Google login");
+      }
     }
   };
 
@@ -62,31 +66,41 @@ function Auth({ setUser }: { setUser: (user: string) => void }) {
   };
 
   const skipForDev = async () => {
-    const devUsername = "Developer";
+    const devUsername = "OracleDev_" + Math.random().toString(36).substr(2, 5);
     const devPassword = "password123";
 
     try {
-      // Try login first
+      // Try register then login (simpler for unique dev accounts)
+      await axios.post("/api/users/register", { 
+        username: devUsername, 
+        password: devPassword, 
+        role: "admin",
+        email: `${devUsername}@oracle.dev` 
+      });
+      
       const res = await axios.post("/api/users/login", { username: devUsername, password: devPassword });
       const data = res.data;
       localStorage.setItem("token", data.token);
       const userData = JSON.stringify(data);
       localStorage.setItem("user", userData);
       setUser(userData);
-    } catch (err) {
-      // If fails, try register then login
-      try {
-        await axios.post("/api/users/register", { username: devUsername, password: devPassword, role: "admin" });
-        const res = await axios.post("/api/users/login", { username: devUsername, password: devPassword });
-        const data = res.data;
-        localStorage.setItem("token", data.token);
-        const userData = JSON.stringify(data);
-        localStorage.setItem("user", userData);
-        setUser(userData);
-      } catch (regErr) {
-        console.error("Dev skip failed", regErr);
-        alert("Dev skip failed. Check server console.");
+    } catch (err: any) {
+      // If register fails with "already exists", try login anyway with a fallback default dev account
+      if (err.response?.status === 400) {
+        try {
+          const res = await axios.post("/api/users/login", { username: "Developer", password: "password123" });
+          const data = res.data;
+          localStorage.setItem("token", data.token);
+          const userData = JSON.stringify(data);
+          localStorage.setItem("user", userData);
+          setUser(userData);
+          return;
+        } catch (loginErr) {
+          console.error("Default dev login failed", loginErr);
+        }
       }
+      console.error("Dev skip failed", err);
+      alert(`Dev skip failed: ${err.response?.data?.error || "Unknown error"}`);
     }
   };
 

@@ -8,13 +8,29 @@ const router = express.Router();
 // GET ALL WITHDRAWALS
 router.get("/all", (req, res) => {
   try {
-    const withdrawals = db.prepare(`
+    const listWithdrawals = db.prepare(`
       SELECT w.*, u.username 
       FROM withdrawals w 
       JOIN users u ON w.user_id = u.id 
       ORDER BY w.created_at DESC
     `).all();
-    res.json(withdrawals);
+
+    const listFiat = db.prepare(`
+      SELECT f.*, u.username
+      FROM fiat_transactions f
+      JOIN users u ON f.user_id = u.id
+      ORDER BY f.created_at DESC
+    `).all();
+
+    res.json([
+      ...listFiat.map((f: any) => ({ 
+        ...f, 
+        method: 'Paystack', 
+        provider: 'Paystack',
+        wallet_address: f.account_number + (f.bank_code ? ` (${f.bank_code})` : '')
+      })), 
+      ...listWithdrawals
+    ]);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch withdrawals" });
   }

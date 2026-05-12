@@ -26,7 +26,10 @@ const LiveChat: React.FC<LiveChatProps> = ({ roomId, isHost }) => {
   const username = user?.username || "Agent";
 
   useEffect(() => {
-    socket.emit("join-room", roomId);
+    socket.emit("join-room", {
+      roomId,
+      userId: user?.id || "guest",
+    });
 
     const handleReceiveMessage = (data: Message) => {
       setMessages((prev) => [...prev, data]);
@@ -36,13 +39,15 @@ const LiveChat: React.FC<LiveChatProps> = ({ roomId, isHost }) => {
         if (data.username === username) {
             window.location.href = "/";
         }
-        setMessages(prev => [...prev, { username: "SYSTEM", message: `${data.username} has been kicked.`, roomId, timestamp: Date.now() }]);
+        setMessages(prev => [...prev, { username: "SYSTEM", message: `${data.username} has been kicked.`, roomId, timestamp: Date.now() } as any]);
     };
 
+    socket.on("new-message", handleReceiveMessage);
     socket.on("receive-message", handleReceiveMessage);
     socket.on("user_kicked", handleUserKicked);
 
     return () => {
+      socket.off("new-message", handleReceiveMessage);
       socket.off("receive-message", handleReceiveMessage);
       socket.off("user_kicked", handleUserKicked);
     };
@@ -54,18 +59,43 @@ const LiveChat: React.FC<LiveChatProps> = ({ roomId, isHost }) => {
     }
   }, [messages]);
 
-  const sendMessage = (e?: React.FormEvent) => {
+  const sendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!message.trim()) return;
 
-    socket.emit("send-message", {
-      roomId,
-      username,
-      message,
-      timestamp: Date.now(),
-    });
+    try {
+      // AI Moderation Check
+      const modRes = await axios.post("/api/moderation/message", {
+        userId: user?.id || "guest",
+        roomId,
+        message: message.trim()
+      });
 
-    setMessage("");
+      if (modRes.data.flagged) {
+        alert(`Message Blocked: ${modRes.data.action}`);
+        return;
+      }
+
+      socket.emit("send-message", {
+        roomId,
+        username,
+        message: message.trim(),
+        timestamp: Date.now(),
+      });
+
+      setMessage("");
+    } catch (err) {
+      console.error("Moderation check failed", err);
+      // Fallback: send anyway if engine is down? Or block?
+      // Usually better to block if it's a security requirement, but for UX let's send
+      socket.emit("send-message", {
+        roomId,
+        username,
+        message: message.trim(),
+        timestamp: Date.now(),
+      });
+      setMessage("");
+    }
   };
 
   const kickUser = async (targetUsername: string) => {

@@ -1,45 +1,41 @@
 import express from "express";
 import db from "../config/db";
-import { getIO } from "../socket/socketServer";
+import { moderateMessage } from "../utils/moderationEngine";
 
 const router = express.Router();
 
-// KICK USER
-router.post("/kick", (req, res) => {
-  const { userId, roomId, username } = req.body;
+// MODERATE MESSAGE
+router.post("/message", async (req, res) => {
   try {
-    const io = getIO();
-    io.to(roomId).emit("user_kicked", { userId, username, roomId });
-    res.json({ success: true, message: `User ${username} kicked.` });
-  } catch (err) {
-    res.status(500).json({ message: "Kick failed" });
+    const result = await moderateMessage(req.body);
+    res.json(result);
+  } catch (err: any) {
+    console.error("Moderation failed:", err);
+    res.status(500).json({
+      message: "Moderation failed",
+      error: err.message
+    });
   }
 });
 
-// MUTE USER
-router.post("/mute", (req, res) => {
-  const { userId, username, roomId } = req.body;
+// GET LOGS
+router.get("/logs/:roomId", async (req, res) => {
   try {
-    const io = getIO();
-    io.to(roomId).emit("user_muted", { userId, username, roomId });
-    // In database
-    db.prepare("INSERT INTO mutes (user_id) VALUES (?) ON CONFLICT(user_id) DO NOTHING").run(userId);
-    res.json({ success: true, message: `User ${username} muted.` });
-  } catch (err) {
-    res.status(500).json({ message: "Mute failed" });
-  }
-});
-
-// BAN USER (Admin only)
-router.post("/ban", (req, res) => {
-  const { userId, username, reason, adminId } = req.body;
-  try {
-    const io = getIO();
-    db.prepare("INSERT INTO bans (user_id, reason, admin_id) VALUES (?, ?, ?)").run(userId, reason, adminId);
-    io.emit("user_banned", { userId, username });
-    res.json({ success: true, message: `User ${username} banned permanently.` });
-  } catch (err) {
-    res.status(500).json({ message: "Ban failed" });
+    const logs = db.prepare(`
+      SELECT m.*, u.username 
+      FROM moderation_logs m 
+      LEFT JOIN users u ON m.user_id = u.id 
+      WHERE m.room_id = ? 
+      ORDER BY m.created_at DESC
+    `).all(req.params.roomId);
+    
+    res.json(logs);
+  } catch (err: any) {
+    console.error("Failed to fetch logs:", err);
+    res.status(500).json({
+      message: "Failed to fetch logs",
+      error: err.message
+    });
   }
 });
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Search, Flame, TrendingUp, Sparkles, Plus } from "lucide-react";
+import { Search, Flame, TrendingUp, Sparkles, Plus, Globe } from "lucide-react";
 import { motion } from "motion/react";
+import { Link } from "react-router-dom";
 import LiveCard from "../components/LiveCard";
 import axios from "axios";
 import AlgorithmBait from "../components/AlgorithmBait";

@@ -14,7 +14,8 @@ function Coins() {
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
-    if (userId === "guest") return;
+    const token = localStorage.getItem("token");
+    if (userId === "guest" || !token) return;
     
     axios.get(`/api/coins/${userId}`)
       .then((res) => {
