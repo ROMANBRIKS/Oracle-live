@@ -1,77 +1,65 @@
 import express from "express";
 import db from "../config/db";
-
-import auth from "../middleware/auth";
+import { v4 as uuidv4 } from "uuid";
+import { joinAgency } from "../utils/agencyEngine";
 
 const router = express.Router();
 
-router.use(auth);
-
-// Create agency
+// CREATE AGENCY
 router.post("/create", (req, res) => {
-  const { ownerId, agencyName } = req.body;
-
   try {
-    const result = db.prepare("INSERT INTO agencies (name, owner_id) VALUES (?, ?)").run(agencyName, ownerId);
-    const agencyId = result.lastInsertRowid;
+    const { name, logo, ownerId, description, region, commissionRate } = req.body;
+    const id = uuidv4();
     
-    // Add owner as the first member
-    db.prepare("INSERT INTO agency_members (agency_id, user_id) VALUES (?, ?)").run(agencyId, ownerId);
-    
-    res.json({ id: agencyId, name: agencyName, owner_id: ownerId });
-  } catch (error: any) {
-    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-      return res.status(400).json({ error: "Agency name already exists" });
-    }
-    res.status(500).json({ error: error.message });
+    db.prepare(`
+      INSERT INTO agencies (id, name, logo, owner_id, description, region, commission_rate)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, name, logo, ownerId, description, region || 'global', commissionRate || 10.0);
+
+    const agency = db.prepare("SELECT * FROM agencies WHERE id = ?").get(id);
+    res.json({ success: true, agency });
+  } catch (err: any) {
+    res.status(500).json({ message: "Failed to create agency", error: err.message });
   }
 });
 
-// Join agency
-router.post("/join", (req, res) => {
-  const { userId, agencyId } = req.body;
-
+// JOIN AGENCY
+router.post("/join", async (req, res) => {
   try {
-    db.prepare("INSERT INTO agency_members (agency_id, user_id) VALUES (?, ?)").run(agencyId, userId);
-    res.json({ success: true });
-  } catch (error: any) {
-    if (error.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
-      return res.status(400).json({ error: "You are already a member of this agency" });
-    }
-    res.status(500).json({ error: error.message });
+    const { agencyId, creatorId } = req.body;
+    const member = await joinAgency({ agencyId, creatorId });
+    if (!member) return res.status(404).json({ message: "Agency not found" });
+    
+    res.json({ success: true, member });
+  } catch (err: any) {
+    res.status(500).json({ message: "Join failed", error: err.message });
   }
 });
 
-// Get agencies with member counts
+// GET AGENCY MEMBERS
+router.get("/members/:agencyId", (req, res) => {
+  try {
+    const { agencyId } = req.params;
+    const members = db.prepare(`
+      SELECT am.*, u.username, u.avatar 
+      FROM agency_members am
+      JOIN users u ON am.creator_id = u.id
+      WHERE am.agency_id = ?
+    `).all(agencyId);
+
+    res.json(members);
+  } catch (err: any) {
+    res.status(500).json({ message: "Failed to fetch members", error: err.message });
+  }
+});
+
+// GET ALL AGENCIES (for discovery)
 router.get("/", (req, res) => {
   try {
-    const agencies = db.prepare(`
-      SELECT a.*, u.username as owner_name, COUNT(am.user_id) as member_count
-      FROM agencies a
-      LEFT JOIN users u ON a.owner_id = u.id
-      LEFT JOIN agency_members am ON a.id = am.agency_id
-      GROUP BY a.id
-    `).all();
+    const agencies = db.prepare("SELECT * FROM agencies ORDER BY total_creators DESC").all();
     res.json(agencies);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get agency for a specific user
-router.get("/user/:userId", (req, res) => {
-  const { userId } = req.params;
-  try {
-    const agency = db.prepare(`
-      SELECT a.*, u.username as owner_name
-      FROM agencies a
-      JOIN agency_members am ON a.id = am.agency_id
-      JOIN users u ON a.owner_id = u.id
-      WHERE am.user_id = ?
-    `).get(userId);
-    res.json(agency || null);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (err: any) {
+    res.status(500).json({ message: "Failed to fetch agencies" });
   }
 });
 

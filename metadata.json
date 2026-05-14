@@ -1,6 +1,6 @@
 {
   "name": "Oracle Live",
-  "description": "Unified mobile/web application combining a TikTok-style video feed with live streaming capabilities.",
+  "description": "Premium multi-guest live streaming and Tik-Tok style content platform with PK Battles, advanced rankings, and high-end interactive UI.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": []
 }

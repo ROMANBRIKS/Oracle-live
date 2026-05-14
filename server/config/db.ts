@@ -1,6 +1,27 @@
 import Database from "better-sqlite3";
+import fs from "fs";
 
-const db = new Database("oracle.db");
+let dbInstance: any;
+
+try {
+  dbInstance = new Database("oracle.db");
+  // Quick check to see if database file is corrupt
+  dbInstance.exec("PRAGMA integrity_check(1);");
+} catch (error: any) {
+  console.error("Database connection failed or corrupt. Initiating automated self-healing...", error);
+  try {
+    if (fs.existsSync("oracle.db")) {
+      const backupName = `oracle.db.corrupt.${Date.now()}`;
+      console.warn(`Renaming malformed database to ${backupName}`);
+      fs.renameSync("oracle.db", backupName);
+    }
+  } catch (fsErr) {
+    console.error("File system recovery error:", fsErr);
+  }
+  dbInstance = new Database("oracle.db");
+}
+
+const db = dbInstance;
 
 // Initialize tables if they don't exist
 db.exec(`
@@ -12,6 +33,8 @@ db.exec(`
     total_spent INTEGER DEFAULT 0,
     total_earned INTEGER DEFAULT 0,
     email TEXT UNIQUE,
+    name TEXT,
+    avatar TEXT,
     role TEXT DEFAULT 'user',
     btc_wallet TEXT,
     eth_wallet TEXT,
@@ -78,23 +101,6 @@ db.exec(`
     category TEXT,
     stream_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS agencies (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE,
-    owner_id TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(owner_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS agency_members (
-    agency_id INTEGER,
-    user_id TEXT,
-    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY(agency_id, user_id),
-    FOREIGN KEY(agency_id) REFERENCES agencies(id),
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
 
@@ -235,18 +241,6 @@ db.exec(`
     FOREIGN KEY(admin_id) REFERENCES users(id) -- or staff_admins(id)
   );
 
-  CREATE TABLE IF NOT EXISTS moderation_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT,
-    room_id TEXT,
-    type TEXT,
-    message TEXT,
-    severity TEXT,
-    action_taken TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id)
-  );
-
   CREATE TABLE IF NOT EXISTS hls_streams (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     room_id TEXT UNIQUE,
@@ -305,14 +299,56 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS leaderboards (
     user_id TEXT,
     type TEXT, -- 'streamer', 'gifter', 'agency'
+    region TEXT DEFAULT 'global',
     daily_points INTEGER DEFAULT 0,
     weekly_points INTEGER DEFAULT 0,
     monthly_points INTEGER DEFAULT 0,
     global_points INTEGER DEFAULT 0,
     level INTEGER DEFAULT 1,
+    badges TEXT DEFAULT '[]', -- JSON string
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(user_id, type),
     FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS agencies (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    logo TEXT,
+    owner_id TEXT,
+    description TEXT,
+    region TEXT DEFAULT 'global',
+    commission_rate REAL DEFAULT 10.0,
+    total_revenue REAL DEFAULT 0.0,
+    total_creators INTEGER DEFAULT 0,
+    verified INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(owner_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS agency_members (
+    agency_id TEXT,
+    creator_id TEXT,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    revenue_generated REAL DEFAULT 0.0,
+    agency_commission_earned REAL DEFAULT 0.0,
+    contract_status TEXT DEFAULT 'active',
+    PRIMARY KEY(agency_id, creator_id),
+    FOREIGN KEY(agency_id) REFERENCES agencies(id),
+    FOREIGN KEY(creator_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS live_moderation (
+    id TEXT PRIMARY KEY,
+    room_id TEXT,
+    target_user_id TEXT,
+    moderator_id TEXT,
+    action TEXT, -- 'mute', 'kick', 'ban', 'shadow_ban', 'warning'
+    reason TEXT,
+    expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(target_user_id) REFERENCES users(id),
+    FOREIGN KEY(moderator_id) REFERENCES users(id)
   );
 
   CREATE TABLE IF NOT EXISTS pk_battles (
@@ -424,7 +460,21 @@ db.exec(`
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
 
+  CREATE TABLE IF NOT EXISTS crypto_wallets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT,
+    chain TEXT,
+    address TEXT,
+    encrypted_private_key TEXT,
+    balance REAL DEFAULT 0,
+    wallet_type TEXT DEFAULT 'user',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+  CREATE INDEX IF NOT EXISTS idx_crypto_wallets_user ON crypto_wallets(user_id);
   CREATE INDEX IF NOT EXISTS idx_streams_is_live ON streams(is_live);
   CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
   CREATE INDEX IF NOT EXISTS idx_activity_user_id ON activity(user_id);
@@ -435,7 +485,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_recommendation_scores_final ON recommendation_scores(final_score);
 `);
 
-// MIGRATIONS
+// MIGRATIONS - MUST RUN BEFORE SEEDING
 const migrations = [
   "ALTER TABLE users ADD COLUMN email TEXT;",
   "UPDATE users SET role = 'admin' WHERE email = 'irionguard@gmail.com';",
@@ -463,11 +513,147 @@ const migrations = [
   "ALTER TABLE transactions ADD COLUMN network TEXT;",
   "ALTER TABLE transactions ADD COLUMN tx_hash TEXT;",
   "ALTER TABLE withdrawals ADD COLUMN crypto_type TEXT;",
-  "ALTER TABLE withdrawals ADD COLUMN amount_crypto REAL;"
+  "ALTER TABLE withdrawals ADD COLUMN amount_crypto REAL;",
+  "ALTER TABLE users ADD COLUMN name TEXT;",
+  "ALTER TABLE users ADD COLUMN avatar TEXT;",
+  "ALTER TABLE leaderboards ADD COLUMN region TEXT DEFAULT 'global';",
+  "ALTER TABLE leaderboards ADD COLUMN badges TEXT DEFAULT '[]';",
+  "ALTER TABLE agencies ADD COLUMN logo TEXT;",
+  "ALTER TABLE agencies ADD COLUMN owner_id TEXT;",
+  "ALTER TABLE agencies ADD COLUMN description TEXT;",
+  "ALTER TABLE agencies ADD COLUMN region TEXT DEFAULT 'global';",
+  "ALTER TABLE agencies ADD COLUMN commission_rate REAL DEFAULT 10.0;",
+  "ALTER TABLE agencies ADD COLUMN total_revenue REAL DEFAULT 0.0;",
+  "ALTER TABLE agencies ADD COLUMN total_creators INTEGER DEFAULT 0;",
+  "ALTER TABLE agencies ADD COLUMN verified INTEGER DEFAULT 0;",
+  "ALTER TABLE agency_members ADD COLUMN creator_id TEXT;",
+  "ALTER TABLE agency_members ADD COLUMN revenue_generated REAL DEFAULT 0.0;",
+  "ALTER TABLE agency_members ADD COLUMN agency_commission_earned REAL DEFAULT 0.0;",
+  "ALTER TABLE agency_members ADD COLUMN contract_status TEXT DEFAULT 'active';",
+  "ALTER TABLE transactions ADD COLUMN method TEXT;",
+  "ALTER TABLE transactions ADD COLUMN provider_reference TEXT;",
+  "ALTER TABLE transactions ADD COLUMN retry_count INTEGER DEFAULT 0;",
+  "ALTER TABLE blockchain_transactions ADD COLUMN confirmations INTEGER DEFAULT 0;",
+  "ALTER TABLE stream_analytics ADD COLUMN average_watch_time REAL DEFAULT 0.0;",
+  "ALTER TABLE stream_analytics ADD COLUMN engagement_score REAL DEFAULT 0.0;",
+  "ALTER TABLE stream_analytics ADD COLUMN gift_score REAL DEFAULT 0.0;",
+  "ALTER TABLE stream_analytics ADD COLUMN retention_rate REAL DEFAULT 0.0;",
+  "ALTER TABLE stream_analytics ADD COLUMN ai_viral_score REAL DEFAULT 0.0;",
+  "CREATE TABLE IF NOT EXISTS ai_moderation_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, type TEXT, reason TEXT, severity TEXT, action TEXT, content TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);"
 ];
 
 migrations.forEach(m => {
-  try { db.exec(m); } catch (e) {}
+  try { db.exec(m); } catch (e) {
+    // Silently skip if column already exists
+  }
 });
+
+// SEED SAMPLE DATA IF EMPTY
+const seedUsers = () => {
+  const count = db.prepare("SELECT COUNT(*) as count FROM users").get() as any;
+  if (count && count.count === 0) {
+    console.log("Seeding sample users...");
+    const sampleUsers = [
+      { id: 'user_1', username: 'LegendStreamer', name: 'Legend Streamer', avatar: 'https://i.pravatar.cc/150?u=1' },
+      { id: 'user_2', username: 'WhaleKing', name: 'Whale King', avatar: 'https://i.pravatar.cc/150?u=2' },
+      { id: 'user_3', username: 'GiftMaster', name: 'Gift Master', avatar: 'https://i.pravatar.cc/150?u=3' },
+      { id: 'user_4', username: 'StarLive', name: 'Star Live', avatar: 'https://i.pravatar.cc/150?u=4' },
+      { id: 'user_5', username: 'OracleDev', name: 'Oracle Developer', avatar: 'https://i.pravatar.cc/150?u=5' }
+    ];
+    
+    sampleUsers.forEach(u => {
+      db.prepare("INSERT INTO users (id, username, name, avatar, role) VALUES (?, ?, ?, ?, ?)")
+        .run(u.id, u.username, u.name, u.avatar, 'user');
+    });
+  }
+};
+try { seedUsers(); } catch (e) { console.error("seedUsers failed:", e); }
+
+const seedLeaderboard = () => {
+  const count = db.prepare("SELECT COUNT(*) as count FROM leaderboards").get() as any;
+  if (count && count.count === 0) {
+    console.log("Seeding sample leaderboard data...");
+    const users = db.prepare("SELECT id FROM users LIMIT 5").all() as any[];
+    if (users.length > 0) {
+       users.forEach((user, i) => {
+          db.prepare("INSERT INTO leaderboards (user_id, type, daily_points, weekly_points, monthly_points, global_points, level) VALUES (?, ?, ?, ?, ?, ?, ?)")
+            .run(user.id, 'streamer', (5-i)*1000, (5-i)*5000, (5-i)*20000, (5-i)*50000, 5-i);
+          db.prepare("INSERT INTO leaderboards (user_id, type, daily_points, weekly_points, monthly_points, global_points, level) VALUES (?, ?, ?, ?, ?, ?, ?)")
+            .run(user.id, 'gifter', (5-i)*2000, (5-i)*10000, (5-i)*40000, (5-i)*100000, 5-i);
+       });
+    }
+  }
+};
+try { seedLeaderboard(); } catch (e) { console.error("seedLeaderboard failed:", e); }
+
+const seedMultiGuest = () => {
+  const count = db.prepare("SELECT COUNT(*) as count FROM multi_guest_rooms").get() as any;
+  if (count && count.count === 0) {
+    console.log("Seeding sample multi-guest room...");
+    const roomId = "sample-room";
+    db.prepare("INSERT INTO multi_guest_rooms (room_id, host_id, title) VALUES (?, ?, ?)")
+      .run(roomId, "user_1", "Oracle Tech Talk & Vibes");
+    
+    for (let i = 1; i <= 6; i++) {
+      db.prepare("INSERT INTO guest_seats (room_id, seat_number) VALUES (?, ?)")
+        .run(roomId, i);
+    }
+  }
+};
+try { seedMultiGuest(); } catch (e) { console.error("seedMultiGuest failed:", e); }
+
+const seedAgencies = () => {
+  const count = db.prepare("SELECT COUNT(*) as count FROM agencies").get() as any;
+  if (count && count.count === 0) {
+    console.log("Seeding sample agency...");
+    const agencyId = 101;
+    db.prepare(`
+      INSERT INTO agencies (id, name, logo, owner_id, description, region, commission_rate, verified)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(agencyId, "Oracle Elite Talent", "https://i.pravatar.cc/150?u=agency", "user_5", "Top tier streamer agency for Oracle Live gaming & lifestyle creators.", "Global", 12.5, 1);
+
+    // Add some members
+    db.prepare("INSERT INTO agency_members (agency_id, creator_id, revenue_generated, agency_commission_earned) VALUES (?, ?, ?, ?)")
+      .run(agencyId, "user_1", 50000, 6250);
+    db.prepare("INSERT INTO agency_members (agency_id, creator_id, revenue_generated, agency_commission_earned) VALUES (?, ?, ?, ?)")
+      .run(agencyId, "user_4", 25000, 3125);
+    
+    db.prepare("UPDATE agencies SET total_creators = 2, total_revenue = 9375 WHERE id = ?").run(agencyId);
+  }
+};
+try { seedAgencies(); } catch (e) { console.error("seedAgencies failed:", e); }
+
+const seedRecommendations = () => {
+  const count = db.prepare("SELECT COUNT(*) as count FROM recommendation_scores").get() as any;
+  if (count && count.count === 0) {
+    console.log("Seeding sample recommendations...");
+    const samples = [
+        { rid: 'room_1', sid: 'user_1', viewers: 1200, score: 850, trend: 1 },
+        { rid: 'room_2', sid: 'user_2', viewers: 800, score: 720, trend: 0 },
+        { rid: 'room_3', sid: 'user_4', viewers: 2400, score: 950, trend: 1 }
+    ];
+    samples.forEach(s => {
+       db.prepare(`
+         INSERT INTO recommendation_scores (room_id, streamer_id, live_viewers, final_score, trending_score)
+         VALUES (?, ?, ?, ?, ?)
+       `).run(s.rid, s.sid, s.viewers, s.score, s.trend);
+    });
+  }
+};
+try { seedRecommendations(); } catch (e) { console.error("seedRecommendations failed:", e); }
+
+const seedTreasury = () => {
+  const count = db.prepare("SELECT COUNT(*) as count FROM treasury").get() as any;
+  if (count && count.count === 0) {
+    console.log("Seeding sample treasury...");
+    db.prepare("INSERT INTO treasury (currency, hot_wallet_balance, cold_wallet_balance, pending_withdrawals, low_liquidity) VALUES (?, ?, ?, ?, ?)")
+      .run("USDT", 120000, 2500000, 18000, 0);
+    db.prepare("INSERT INTO treasury (currency, hot_wallet_balance, cold_wallet_balance, pending_withdrawals, low_liquidity) VALUES (?, ?, ?, ?, ?)")
+      .run("BTC", 85000, 1200000, 5000, 0);
+    db.prepare("INSERT INTO treasury (currency, hot_wallet_balance, cold_wallet_balance, pending_withdrawals, low_liquidity) VALUES (?, ?, ?, ?, ?)")
+      .run("GHS", 20000, 400000, 35000, 1);
+  }
+};
+try { seedTreasury(); } catch (e) { console.error("seedTreasury failed:", e); }
 
 export default db;

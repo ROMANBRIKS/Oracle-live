@@ -3,9 +3,20 @@ import db from "../config/db";
 
 const router = express.Router();
 
-// Fetch rankings by type and timeframe
-router.get("/:timeframe/:type", (req, res) => {
-  const { timeframe, type } = req.params;
+// Fetch rankings by type/category and timeframe
+router.get("/:timeframe/:category", (req, res) => {
+  const { timeframe, category } = req.params;
+  
+  // Mapping for frontend consistency
+  const categoryMap: Record<string, string> = {
+    'top_streamer': 'streamer',
+    'top_gifter': 'gifter',
+    'streamer': 'streamer',
+    'gifter': 'gifter',
+    'agency': 'agency'
+  };
+
+  const type = categoryMap[category] || category;
   const validTypes = ['streamer', 'gifter', 'agency'];
   const validTimeframes = ['daily', 'weekly', 'monthly', 'global'];
 
@@ -17,7 +28,19 @@ router.get("/:timeframe/:type", (req, res) => {
   
   try {
     const data = db.prepare(`
-      SELECT l.*, u.username, u.avatar 
+      SELECT 
+        l.user_id as _id, 
+        l.user_id as userId,
+        u.username, 
+        u.avatar,
+        l.region,
+        l.level,
+        l.badges,
+        l.${column} as points,
+        l.daily_points as dailyPoints,
+        l.weekly_points as weeklyPoints,
+        l.monthly_points as monthlyPoints,
+        l.global_points as seasonPoints
       FROM leaderboards l
       JOIN users u ON l.user_id = u.id
       WHERE l.type = ?
@@ -25,10 +48,25 @@ router.get("/:timeframe/:type", (req, res) => {
       LIMIT 100
     `).all(type);
 
-    res.json(data);
-  } catch (err) {
-    console.error("Leaderboard Fetch Error:", err);
-    res.status(500).json({ error: "Failed to fetch leaderboard" });
+    // Parse badges JSON
+    const formattedData = data.map((item: any) => ({
+      ...item,
+      badges: JSON.parse(item.badges || "[]")
+    }));
+
+    res.json(formattedData);
+  } catch (err: any) {
+    console.error("Leaderboard Fetch Error Details:", {
+      message: err.message,
+      stack: err.stack,
+      timeframe,
+      type,
+      column
+    });
+    res.status(500).json({ 
+      error: "Failed to fetch leaderboard",
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 

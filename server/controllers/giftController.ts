@@ -6,6 +6,7 @@ import { addPoints } from "../utils/leaderboardEngine";
 import { updateAnalytics } from "../utils/analyticsEngine";
 import { addStreamerRevenue } from "../utils/revenueEngine";
 import { incrementGiftScore } from "../utils/recommendationEngine";
+import { updateAgencyRevenue } from "../utils/agencyEngine";
 
 export const getAllGifts = (req: any, res: any) => {
   try {
@@ -130,6 +131,12 @@ export const sendGift = async (req: any, res: any) => {
 
         // PHASE 6.7 - AI Recommendation increment
         await incrementGiftScore(roomId, receiverId, cost);
+
+        // PHASE 7.6 - Agency Revenue
+        await updateAgencyRevenue({
+            creatorId: receiverId,
+            amount: cost
+        });
     } catch (revErr) {
         console.error("Revenue update failed in gift flow:", revErr);
     }

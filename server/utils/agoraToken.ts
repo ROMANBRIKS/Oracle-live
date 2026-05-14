@@ -1,4 +1,5 @@
-import { RtcTokenBuilder, RtcRole } from "agora-access-token";
+import * as AgoraAccessToken from "agora-access-token";
+const { RtcTokenBuilder, RtcRole } = AgoraAccessToken;
 import agora from "../config/agora";
 
 export interface TokenRequest {

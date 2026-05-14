@@ -1,6 +1,6 @@
 import express from "express";
 import db from "../config/db";
-import { createSeats, joinSeat, getRoom } from "../utils/multiGuestEngine";
+import { createSeats, joinSeat, leaveSeat, getRoom } from "../utils/multiGuestEngine";
 
 const router = express.Router();
 
@@ -45,6 +45,24 @@ router.post("/join-seat", async (req, res) => {
     console.error("Failed to join seat:", err);
     res.status(500).json({
       message: "Failed to join seat",
+      error: err.message
+    });
+  }
+});
+
+// LEAVE SEAT
+router.post("/leave-seat", async (req, res) => {
+  try {
+    const room = await leaveSeat(req.body);
+
+    res.json({
+      success: true,
+      room,
+    });
+  } catch (err: any) {
+    console.error("Failed to leave seat:", err);
+    res.status(500).json({
+      message: "Failed to leave seat",
       error: err.message
     });
   }

@@ -31,10 +31,14 @@ const RevenueDashboard = lazy(() => import("./pages/RevenueDashboard"));
 const ClipCenter = lazy(() => import("./pages/ReplayCenter"));
 const PkBattleRoom = lazy(() => import("./pages/PkBattleRoom"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard"));
+const AgencyDashboard = lazy(() => import("./pages/AgencyDashboard"));
 const StaffAdminLogin = lazy(() => import("./pages/StaffAdminLogin"));
 const NotificationsPage = lazy(() => import("./pages/Notifications"));
 const KYCPage = lazy(() => import("./pages/KYC"));
 const TransactionHistory = lazy(() => import("./pages/TransactionHistory"));
+const CloudReplayPage = lazy(() => import("./pages/CloudReplayPage"));
+const TikTokLiveRoom = lazy(() => import("./pages/TikTokLiveRoom"));
+const TangoProfile = lazy(() => import("./pages/TangoProfile"));
 const LocationLanding = lazy(() => import("./pages/LocationLanding"));
 const Auth = lazy(() => import("./pages/Auth"));
 
@@ -51,6 +55,27 @@ function App() {
   const token = localStorage.getItem("token");
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          localStorage.clear();
+          setUser(null);
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptor);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -106,33 +131,41 @@ function App() {
     <div className="flex flex-col h-full bg-[#000] bg-crystal-void text-white font-sans overflow-hidden">
       
       {/* Top Header - Liquid Glass style */}
-      <header className="flex justify-between items-center px-6 py-5 liquid-glass border-b border-white/5 sticky top-0 z-50 rounded-b-[2rem]">
-        <Link to="/" className="flex items-center gap-3 decoration-0">
-          <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center font-black text-black italic shadow-2xl">O</div>
+      <header className="flex justify-between items-center px-6 py-5 liquid-glass border-b border-white/5 sticky top-0 z-50 rounded-b-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+        <Link to="/" className="flex items-center gap-4 group no-underline">
+          <div className="w-12 h-12 crystal-button bg-cyan-400 text-black flex items-center justify-center font-black text-2xl italic shadow-[0_0_20px_rgba(34,211,238,0.5)] group-hover:scale-110 transition-transform">O</div>
           <div className="flex flex-col">
-            <span className="font-black tracking-tighter text-xl italic uppercase text-white">Oracle Live</span>
-            <span className="text-[8px] font-black text-white/50 uppercase tracking-widest leading-none">Global Network</span>
+            <h1 className="font-black tracking-tighter text-2xl italic uppercase text-white leading-none">Oracle</h1>
+            <div className="flex items-center gap-2 mt-1">
+                <div className="w-2 h-0.5 bg-cyan-400" />
+                <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.4em] leading-none italic">Neural Network</span>
+            </div>
           </div>
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-5">
           {user && JSON.parse(user).role === "admin" && (
-            <Link to="/admin/fiat" className="bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Payouts Hub</span>
+            <Link to="/admin/fiat" className="bg-cyan-400/10 border border-cyan-400/30 px-5 py-2 rounded-2xl flex items-center gap-3 hover:bg-cyan-400/20 transition-all">
+              <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,211,238,1)]"></div>
+              <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest italic">Governance</span>
             </Link>
           )}
-          <button 
-            onClick={() => navigate("/notifications")}
-            className="w-10 h-10 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center hover:bg-blue-500/20 hover:border-blue-500/40 transition-all group"
-          >
-            <Bell size={16} className="text-white group-hover:text-blue-500" />
-          </button>
-          <button 
-            onClick={logout}
-            className="w-10 h-10 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center hover:bg-red-500/20 hover:border-red-500/40 transition-all group"
-          >
-            <LogOut size={16} className="text-white group-hover:text-red-500" />
-          </button>
+          <div className="flex items-center gap-3">
+              <button 
+                onClick={() => navigate("/notifications")}
+                className="w-12 h-12 crystal-button group"
+                title="Transmissions"
+              >
+                <Bell size={18} className="text-white/40 group-hover:text-cyan-400 transition-colors" />
+              </button>
+              <button 
+                onClick={logout}
+                className="w-12 h-12 crystal-button group"
+                title="Disconnect"
+              >
+                <LogOut size={18} className="text-white/40 group-hover:text-rose-500 transition-colors" />
+              </button>
+          </div>
+          <div className="h-10 w-px bg-white/5 mx-2" />
           <Coins />
         </div>
       </header>
@@ -173,11 +206,15 @@ function App() {
             <Route path="/creator/revenue" element={<RevenueDashboard />} />
             <Route path="/creator/clips" element={<ClipCenter />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/agency-dashboard" element={<AgencyDashboard />} />
             <Route path="/clips" element={<ClipsPage />} />
             <Route path="/staff/login" element={<StaffAdminLogin />} />
             <Route path="/notifications" element={<NotificationsPage onBack={() => navigate("/")} />} />
             <Route path="/kyc" element={<KYCPage onBack={() => navigate("/")} />} />
             <Route path="/transactions" element={<TransactionHistory />} />
+            <Route path="/cloud-replays" element={<CloudReplayPage />} />
+            <Route path="/tiktok-live" element={<TikTokLiveRoom />} />
+            <Route path="/tango-profile" element={<TangoProfile />} />
             
             {/* SEO Landing Routes (Pyramid Structure) */}
             <Route path="/:service/:regionSlug" element={<LocationLanding />} />

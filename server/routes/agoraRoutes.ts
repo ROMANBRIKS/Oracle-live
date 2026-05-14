@@ -1,5 +1,6 @@
 import express from "express";
-import { RtcTokenBuilder, RtcRole } from "agora-access-token";
+import * as AgoraAccessToken from "agora-access-token";
+const { RtcTokenBuilder, RtcRole } = AgoraAccessToken;
 
 const router = express.Router();
 
@@ -8,7 +9,7 @@ router.post("/token", async (req, res) => {
     const { channelName, uid, role } = req.body;
 
     if (!channelName || !uid) {
-      return res.status(400).json({ message: "channelName and uid are required" });
+      return res.status(400).json({ success: false, message: "channelName and uid are required" });
     }
 
     const appId = process.env.AGORA_APP_ID;
@@ -16,7 +17,7 @@ router.post("/token", async (req, res) => {
 
     if (!appId || !appCertificate) {
       console.warn("[DEMO MODE] AGORA_APP_ID or AGORA_APP_CERT is missing. Sending mock token.");
-      return res.json({ token: "MOCK_TOKEN_" + Date.now(), isDemo: true });
+      return res.json({ success: true, token: "MOCK_TOKEN_" + Date.now(), isDemo: true });
     }
 
     const expirationTimeInSeconds = 3600;
@@ -34,10 +35,10 @@ router.post("/token", async (req, res) => {
       privilegeExpiredTs
     );
 
-    res.json({ token });
+    res.json({ success: true, token });
   } catch (err: any) {
     console.error("Token generation failed:", err);
-    res.status(500).json({ message: "Failed to generate Agora token" });
+    res.status(500).json({ success: false, message: "Failed to generate Agora token" });
   }
 });
 

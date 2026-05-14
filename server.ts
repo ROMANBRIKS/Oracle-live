@@ -42,6 +42,9 @@ import hlsRoutes from "./server/routes/hlsRoutes";
 import giftRoutes from "./server/routes/giftRoutes";
 import leaderboardRoutes from "./server/routes/leaderboardRoutes";
 import multiGuestRoutes from "./server/routes/multiGuestRoutes";
+import liveModerationRoutes from "./server/routes/liveModerationRoutes";
+import cloudReplayRoutes from "./server/routes/cloudReplayRoutes";
+import discoveryRoutes from "./server/routes/discoveryRoutes";
 import { initSocket, getIO } from "./server/socket/socketServer";
 import { sendGift } from "./server/controllers/giftController";
 import { processPKTick } from "./server/controllers/pkController";
@@ -103,10 +106,12 @@ async function startServer() {
     ["/api/notifications", notificationRoutes], ["/api/kyc", kycRoutes], ["/api/treasury", treasuryRoutes],
     ["/api/pk", pkRoutes], ["/api/moderation", moderationRoutes], ["/api/blockchain", blockchainRoutes],
     ["/api/fiat", fiatWithdrawalRoutes], ["/api/staff-admin", staffAdminRoutes],
-    ["/api/admins", adminsManagementRoutes], ["/api/admin", adminTreasuryRoutes],
+    ["/api/admins", adminsManagementRoutes], ["/api/admin/treasury", adminTreasuryRoutes],
     ["/api/recommendations", recommendationRoutes], ["/api/clips", clipRoutes],
-    ["/api/hls", hlsRoutes], ["/api/gifts", giftRoutes], ["/api/leaderboard", leaderboardRoutes],
-    ["/api/multi-guest", multiGuestRoutes]
+    ["/api/cloud-replays", cloudReplayRoutes],
+    ["/api/hls", hlsRoutes], ["/api/gifts", giftRoutes], ["/api/leaderboards", leaderboardRoutes],
+    ["/api/multi-guest", multiGuestRoutes], ["/api/live-moderation", liveModerationRoutes],
+    ["/api/discovery", discoveryRoutes]
   ];
 
   routes.forEach(([path, handler]) => {
@@ -182,7 +187,7 @@ async function startServer() {
     };
 
     // Insert or update demo user in DB
-    db.prepare("INSERT OR IGNORE INTO users (id, email, username, name, avatar_url, coins) VALUES (?, ?, ?, ?, ?, ?)")
+    db.prepare("INSERT OR IGNORE INTO users (id, email, username, name, avatar, coins) VALUES (?, ?, ?, ?, ?, ?)")
       .run(demoUser.id, demoUser.email, "demouser", demoUser.name, demoUser.picture, 1000);
 
     const token = jwt.sign(demoUser, SECRET, { expiresIn: "7d" });

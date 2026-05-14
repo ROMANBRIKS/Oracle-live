@@ -27,6 +27,15 @@ export async function joinSeat({ roomId, seatNumber, userId }: { roomId: string,
   return room;
 }
 
+export async function leaveSeat({ roomId, userId }: { roomId: string, userId: string }) {
+  // Clear seat for this user
+  db.prepare("UPDATE guest_seats SET user_id = NULL WHERE room_id = ? AND user_id = ?").run(roomId, userId);
+
+  // Return full room data
+  const room = await getRoom(roomId);
+  return room;
+}
+
 export async function getRoom(roomId: string) {
   const room = db.prepare("SELECT * FROM multi_guest_rooms WHERE room_id = ?").get(roomId) as any;
   if (room) {

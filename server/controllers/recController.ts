@@ -69,34 +69,44 @@ export const getLeaderboard = (req: any, res: any) => {
 
 export const getFeed = (req: any, res: any) => {
   try {
-    const userId = req.user?.userId; // Assuming auth middleware adds user to req
+    const userId = req.user?.userId;
     const user = userId ? db.prepare("SELECT location_iso FROM users WHERE id = ?").get(userId) as any : null;
 
-    // 🧠 SMART WHALE ALGORITHM
-    // 1. Show Whale streamers first (High Whale Score)
-    // 2. Show streamers from same region
-    // 3. Show high activity streams (viewers)
-    // For now we still use mock data but with the algorithm structure
-    const feedData = [
-      { id: "1", title: "Midnight Beats", category: "music", user: "NeonDemon", viewers: 1200, whale_score: 150, location_iso: "SA" },
-      { id: "2", title: "Code with Me", category: "tech", user: "OracleDev", viewers: 850, whale_score: 200, location_iso: "US" },
-      { id: "3", title: "Global Dance Off", category: "dance", user: "StepMaster", viewers: 3400, whale_score: 50, location_iso: "TH" },
-      { id: "4", title: "Cyber Strategy", category: "gaming", user: "ZeroDay", viewers: 560, whale_score: 300, location_iso: "GB" },
-      { id: "5", title: "Late Night Chat", category: "chat", user: "Luna_Star", viewers: 2100, whale_score: 80, location_iso: "AE" },
-    ];
+    // Fetch rooms from recommendation_scores joined with users
+    const feedData = db.prepare(`
+      SELECT 
+        rs.room_id as id, 
+        rs.final_score, 
+        rs.live_viewers as viewers, 
+        u.username as user, 
+        u.location_iso,
+        u.whale_score
+      FROM recommendation_scores rs
+      JOIN users u ON rs.streamer_id = u.id
+      ORDER BY rs.final_score DESC
+      LIMIT 50
+    `).all() as any[];
+
+    if (feedData.length === 0) {
+       // Fallback mock data if no real data yet
+       return res.json([
+         { id: "sample-room", title: "Oracle Stage", category: "live", user: "OracleDev", viewers: 1200, whale_score: 150, location_iso: "US" }
+       ]);
+    }
 
     const sortedFeed = feedData.sort((a, b) => {
       // Prioritize Whale Score
-      if (b.whale_score !== a.whale_score) return b.whale_score - a.whale_score;
+      if ((b.whale_score || 0) !== (a.whale_score || 0)) return (b.whale_score || 0) - (a.whale_score || 0);
       // Prioritize Same Region
       if (user && a.location_iso === user.location_iso && b.location_iso !== user.location_iso) return -1;
       if (user && b.location_iso === user.location_iso && a.location_iso !== user.location_iso) return 1;
       // Prioritize Viewers
-      return b.viewers - a.viewers;
+      return (b.viewers || 0) - (a.viewers || 0);
     });
 
     res.json(sortedFeed);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch feed" });
+  } catch (error: any) {
+    console.error("Feed error:", error);
+    res.status(500).json({ error: "Failed to fetch feed", details: error.message });
   }
 };

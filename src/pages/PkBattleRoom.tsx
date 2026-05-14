@@ -1,257 +1,247 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
-import { useParams, useNavigate } from "react-router-dom";
-import PkBattleOverlay from "../components/PkBattleOverlay";
-import { io } from "socket.io-client";
-import { 
-  ArrowLeft, Sword, ShieldAlert, Users, 
-  MessageCircle, Gift, Share2, MoreVertical,
-  Timer
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import socket from "../socket/socket";
 import { motion, AnimatePresence } from "motion/react";
-import LuxuryGiftPanel from "../components/LuxuryGiftPanel";
-import GiftAnimation from "../components/GiftAnimation";
+import { Timer, Swords, Trophy } from "lucide-react";
+import PkPunishmentModal from "../components/PkPunishmentModal";
+import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
 
-const socket = io();
-
-const PkBattleRoom: React.FC = () => {
+export default function PkBattleRoom() {
   const { battleId } = useParams();
   const navigate = useNavigate();
   const [battle, setBattle] = useState<any>(null);
+  const [scoreA, setScoreA] = useState(0);
+  const [scoreB, setScoreB] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(300);
+  const [winner, setWinner] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isGiftPanelOpen, setIsGiftPanelOpen] = useState(false);
-  const [activeGiftEvent, setActiveGiftEvent] = useState<any>(null);
-  const [timeLeft, setTimeLeft] = useState(0);
-
-  const fetchBattle = async () => {
-    try {
-      const res = await axios.get(`/api/pk/status/${battleId}`);
-      setBattle(res.data);
-      if (res.data.started_at) {
-        const start = new Date(res.data.started_at).getTime();
-        const now = new Date().getTime();
-        const elapsed = Math.floor((now - start) / 1000);
-        setTimeLeft(Math.max(0, res.data.duration - elapsed));
-      }
-    } catch (err) {
-      console.error("Failed to fetch battle:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
+    const fetchBattle = async () => {
+      try {
+        const res = await axios.get(`/api/pk/status/${battleId}`);
+        const battleData = res.data;
+        setBattle(battleData);
+        setScoreA(battleData.score_a);
+        setScoreB(battleData.score_b);
+        
+        if (battleData.started_at) {
+          const start = new Date(battleData.started_at).getTime();
+          const now = Date.now();
+          const elapsed = Math.floor((now - start) / 1000);
+          setTimeLeft(Math.max(0, battleData.duration - elapsed));
+        }
+        
+        if (battleData.status === 'ended') {
+          setWinner(battleData.winner);
+        }
+      } catch (err) {
+        console.error("Failed to fetch battle:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchBattle();
 
-    socket.on("pk_update", (updatedBattle) => {
-      if (updatedBattle.id === battleId) {
-        setBattle(updatedBattle);
+    socket.on("pk-live-update", (payload: any) => {
+      if (payload.battleId === battleId || payload.roomId) { // payload.roomId is fallback
+        setScoreA(payload.scoreA);
+        setScoreB(payload.scoreB);
       }
     });
 
-    socket.on("receive_gift", (event) => {
-        setActiveGiftEvent({ ...event, id: Date.now().toString() });
+    socket.on("pk_update", (payload: any) => {
+      if (payload.id === battleId) {
+        setScoreA(payload.score_a);
+        setScoreB(payload.score_b);
+      }
     });
 
-    socket.on("pk_end", (finalBattle) => {
-        if (finalBattle.id === battleId) {
-            setBattle(finalBattle);
-            setTimeLeft(0);
-        }
+    socket.on("pk_end", (payload: any) => {
+      if (payload.id === battleId) {
+        setWinner(payload.winner);
+        setTimeLeft(0);
+      }
     });
 
     return () => {
+      socket.off("pk-live-update");
       socket.off("pk_update");
-      socket.off("receive_gift");
       socket.off("pk_end");
     };
   }, [battleId]);
 
   useEffect(() => {
-    if (timeLeft > 0 && battle?.status === 'live') {
+    if (timeLeft > 0 && !winner) {
       const timer = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
       }, 1000);
+
       return () => clearInterval(timer);
     }
-  }, [timeLeft, battle?.status]);
+  }, [timeLeft, winner]);
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
-  if (loading) return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center space-y-6">
-       <div className="w-24 h-24 border-4 border-t-pink-500 border-zinc-800 rounded-full animate-spin" />
-       <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 italic">Engaging PK Sockets...</p>
-    </div>
-  );
+  const total = scoreA + scoreB || 1;
+  const percentA = (scoreA / total) * 100;
+  const percentB = (scoreB / total) * 100;
 
   return (
-    <div className="min-h-screen bg-black text-white relative overflow-hidden flex flex-col">
-       {/* Background PK Effects */}
-       <div className="absolute inset-0 opacity-20 pointer-events-none">
-          <div className="absolute top-0 left-0 w-1/2 h-full bg-gradient-to-r from-pink-500/20 to-transparent" />
-          <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-cyan-500/20 to-transparent" />
-       </div>
+    <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans">
+      {/* Background Decor */}
+      <div className="absolute top-0 left-0 w-full h-full">
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-blue-500/5 blur-[200px] rounded-full -translate-y-1/2" />
+        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-purple-500/5 blur-[200px] rounded-full translate-y-1/2" />
+      </div>
 
-       {/* Top Controls */}
-       <div className="p-6 flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-4">
-             <button onClick={() => navigate("/")} className="w-12 h-12 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center">
-                <ArrowLeft size={24} />
-             </button>
-             <div className="bg-zinc-950/80 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                   <Timer size={16} className="text-pink-500" />
-                   <span className="text-xl font-black italic tracking-tighter tabular-nums">{formatTime(timeLeft)}</span>
-                </div>
-                <div className="w-px h-6 bg-white/10" />
-                <div className="flex items-center gap-2">
-                   <Users size={16} className="text-white/40" />
-                   <span className="text-sm font-bold italic tracking-tighter">1.4K</span>
-                </div>
-             </div>
+      <div className="relative z-10 w-full max-w-4xl flex flex-col items-center">
+        <motion.div 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="flex flex-col items-center gap-4 mb-20"
+        >
+          <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-6 py-2 rounded-full backdrop-blur-xl">
+            <Timer size={16} className="text-red-500" />
+            <span className="text-xl font-black font-mono italic tracking-tight uppercase">
+              {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+            </span>
           </div>
           
-          <div className="flex items-center gap-3">
-             <button className="w-12 h-12 rounded-2xl bg-zinc-950/80 backdrop-blur-xl border border-white/10 flex items-center justify-center">
-                <Share2 size={20} />
-             </button>
-             <button className="w-12 h-12 rounded-2xl bg-zinc-950/80 backdrop-blur-xl border border-white/10 flex items-center justify-center">
-                <MoreVertical size={20} />
-             </button>
+          <div className="flex flex-col items-center">
+            <h2 className="text-[10px] font-bold text-white/30 uppercase tracking-[0.5em] italic">LIVE DUEL ENGINE</h2>
+            <h1 className="text-6xl font-black italic uppercase tracking-tighter flex items-center gap-4">
+              <span className="text-blue-500">PK</span>
+              <Swords className="text-white/20" size={48} />
+              <span className="text-pink-500">BATTLE</span>
+            </h1>
           </div>
-       </div>
+        </motion.div>
 
-       {/* Main Battle Arena */}
-       <div className="flex-1 px-4 pb-8 flex flex-col relative z-0">
-          <div className="mb-4">
-             <PkBattleOverlay 
-                battle={battle} 
-                hostAName="Legendary_A"
-                hostBName="Champion_B"
-             />
-          </div>
-
-          <div className="flex-1 grid grid-cols-2 gap-2 relative">
-             {/* Host A Container */}
-             <div className="relative rounded-[3rem] overflow-hidden border-4 border-pink-500/30 group">
-                <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center">
-                   <Sword className="text-white/5 animate-pulse" size={150} />
-                </div>
-                <div className="absolute bottom-6 left-6 flex items-center gap-3">
-                   <div className="relative">
-                      <div className="w-12 h-12 rounded-xl bg-pink-500/20 ring-2 ring-pink-500/50" />
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-pink-500 rounded-full border-2 border-black" />
-                   </div>
-                   <span className="text-sm font-black italic uppercase tracking-tighter drop-shadow-lg">Legendary_A</span>
-                </div>
-                {battle.status === 'ended' && battle.winner === battle.host_a && (
-                    <div className="absolute inset-0 bg-pink-500/20 backdrop-blur-sm flex items-center justify-center z-10">
-                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-4xl font-black italic uppercase tracking-tighter text-pink-500 drop-shadow-[0_0_15px_rgba(236,72,153,0.5)] bg-black/80 px-8 py-4 rounded-3xl border-2 border-pink-500">
-                             WINNER
-                        </motion.div>
-                    </div>
-                )}
-             </div>
-
-             {/* Host B Container */}
-             <div className="relative rounded-[3rem] overflow-hidden border-4 border-cyan-500/30 group">
-                <div className="absolute inset-0 bg-zinc-900/50 flex items-center justify-center">
-                   <Sword className="text-white/5 animate-pulse rotate-180" size={150} />
-                </div>
-                <div className="absolute bottom-6 right-6 flex flex-row-reverse items-center gap-3">
-                   <div className="relative">
-                      <div className="w-12 h-12 rounded-xl bg-cyan-500/20 ring-2 ring-cyan-500/50" />
-                      <div className="absolute -top-1 -left-1 w-4 h-4 bg-cyan-500 rounded-full border-2 border-black" />
-                   </div>
-                   <span className="text-sm font-black italic uppercase tracking-tighter drop-shadow-lg">Champion_B</span>
-                </div>
-                {battle.status === 'ended' && battle.winner === battle.host_b && (
-                    <div className="absolute inset-0 bg-cyan-500/20 backdrop-blur-sm flex items-center justify-center z-10">
-                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-4xl font-black italic uppercase tracking-tighter text-cyan-400 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)] bg-black/80 px-8 py-4 rounded-3xl border-2 border-cyan-400">
-                             WINNER
-                        </motion.div>
-                    </div>
-                )}
-             </div>
-
-             {/* Center VS Visual */}
-             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
-                <div className="w-24 h-24 rounded-full bg-black border-4 border-white/10 flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.1)]">
-                   <span className="text-4xl font-black italic tracking-tighter animate-bounce">VS</span>
-                </div>
-             </div>
-          </div>
-       </div>
-
-       {/* Bottom Interaction Area */}
-       <div className="p-8 pb-12 flex items-center gap-6 relative z-10 bg-gradient-to-t from-black via-black/80 to-transparent">
-          <div className="flex-1 h-16 rounded-3xl bg-white/5 border border-white/10 px-6 flex items-center gap-4 group hover:bg-white/10 transition-all cursor-text">
-             <MessageCircle size={20} className="text-white/30 group-hover:text-cyan-500 transition-colors" />
-             <input 
-                type="text" 
-                placeholder="SEND SOME ENERGY..." 
-                className="bg-transparent border-none outline-none text-xs font-bold w-full uppercase tracking-widest placeholder:text-white/10"
-             />
-          </div>
-          
-          <button 
-             onClick={() => setIsGiftPanelOpen(true)}
-             className="w-16 h-16 rounded-[1.5rem] bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center shadow-xl shadow-pink-500/20 hover:scale-110 active:scale-95 transition-all"
+        {/* Score Bar */}
+        <div className="w-full h-12 bg-zinc-900 rounded-3xl border-2 border-white/5 overflow-hidden flex shadow-2xl relative mb-16">
+          <motion.div 
+            animate={{ width: `${percentA}%` }}
+            className="h-full bg-gradient-to-r from-blue-600 to-blue-400 relative overflow-hidden"
           >
-             <Gift size={28} />
-          </button>
-       </div>
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
+          </motion.div>
+          <motion.div 
+            animate={{ width: `${percentB}%` }}
+            className="h-full bg-gradient-to-r from-pink-400 to-pink-600 relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
+          </motion.div>
+          
+          {/* Divider */}
+          <motion.div 
+            animate={{ left: `${percentA}%` }}
+            className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_20px_white] z-10 -ml-0.5"
+          />
+        </div>
 
-       {/* Floating Components */}
-       <LuxuryGiftPanel 
-          isOpen={isGiftPanelOpen} 
-          onClose={() => setIsGiftPanelOpen(false)} 
-          receiverId={battle?.host_a} // For now support host a
-          roomId={battle?.room_id}
-          battleId={battle?.id}
-       />
-       
-       <GiftAnimation event={activeGiftEvent} />
+        {/* Combatants */}
+        <div className="grid grid-cols-2 gap-12 w-full max-w-2xl">
+          <motion.div 
+            initial={{ x: -50, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            className="flex flex-col items-center gap-6"
+          >
+            <div className="relative group">
+              <div className="absolute -inset-4 bg-blue-500/20 blur-2xl rounded-full group-hover:bg-blue-500/40 transition-all" />
+              <div className="relative w-32 h-32 md:w-48 md:h-48 rounded-[3rem] bg-zinc-900 border-2 border-blue-500/30 p-1">
+                <img 
+                  src="https://api.dicebear.com/7.x/avataaars/svg?seed=A" 
+                  className="w-full h-full rounded-[2.8rem] object-cover"
+                  alt="Host A"
+                />
+                <div className="absolute -top-4 -left-4 w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center border-2 border-white/20 shadow-xl">
+                  <span className="font-black italic text-xl">A</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-center">
+              <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-2">TEAM ORACLE</h3>
+              <div className="text-5xl font-black italic tracking-tighter text-blue-500">
+                {scoreA.toLocaleString()}
+              </div>
+            </div>
+          </motion.div>
 
-       {battle?.status === 'ended' && (
-          <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[100] flex flex-col items-center justify-center px-12 text-center">
-             <Trophy rank={1} />
-             <h2 className="text-5xl font-black italic uppercase tracking-tighter mb-4">Battle Concluded</h2>
-             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 italic mb-12">Oracle Justice Has Been Served</p>
-             
-             <div className="flex gap-4 w-full max-w-sm">
-                <button 
-                   onClick={() => navigate("/")}
-                   className="flex-1 py-5 rounded-3xl bg-white text-black text-[10px] font-black uppercase tracking-widest"
-                >
-                   Exit Arena
-                </button>
-                <button 
-                   className="flex-1 py-5 rounded-3xl bg-white/10 text-white text-[10px] font-black uppercase tracking-widest border border-white/10 hover:bg-white/20"
-                >
-                   View Stats
-                </button>
-             </div>
-          </div>
-       )}
+          <motion.div 
+            initial={{ x: 50, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            className="flex flex-col items-center gap-6"
+          >
+            <div className="relative group">
+              <div className="absolute -inset-4 bg-pink-500/20 blur-2xl rounded-full group-hover:bg-pink-500/40 transition-all" />
+              <div className="relative w-32 h-32 md:w-48 md:h-48 rounded-[3rem] bg-zinc-900 border-2 border-pink-500/30 p-1">
+                <img 
+                  src="https://api.dicebear.com/7.x/avataaars/svg?seed=B" 
+                  className="w-full h-full rounded-[2.8rem] object-cover"
+                  alt="Host B"
+                />
+                <div className="absolute -top-4 -right-4 w-12 h-12 bg-pink-600 rounded-2xl flex items-center justify-center border-2 border-white/20 shadow-xl">
+                  <span className="font-black italic text-xl">B</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-center">
+              <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-2">THE RIVALS</h3>
+              <div className="text-5xl font-black italic tracking-tighter text-pink-500">
+                {scoreB.toLocaleString()}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        <button 
+          onClick={() => navigate("/")}
+          className="mt-12 text-[10px] font-black uppercase tracking-widest text-white/20 hover:text-white transition-colors"
+        >
+          Exit Battle Arena
+        </button>
+      </div>
+
+      {/* Punishment Modal */}
+      <PkPunishmentModal 
+        loser={winner === "draw" || !winner || !battle ? null : (winner === battle.host_a ? battle.host_b : battle.host_a)} 
+        onClose={() => setWinner(null)} 
+      />
+
+      {/* Results HUD */}
+      <AnimatePresence>
+        {winner && (
+          <motion.div 
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center pointer-events-none"
+          >
+            <div className="bg-yellow-500 text-black p-20 rounded-[6rem] border-[12px] border-white shadow-[0_0_200px_rgba(234,179,8,0.5)] flex flex-col items-center gap-6">
+              <Trophy size={80} />
+              <h2 className="text-7xl font-black italic uppercase tracking-tighter">VICTORY</h2>
+              <p className="text-3xl font-black uppercase tracking-widest">
+                {winner === "draw" ? "DRAW" : 
+                 (scoreA > scoreB ? "TEAM A" : "TEAM B")}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
-};
-
-const Trophy = ({ rank }: { rank: number }) => (
-    <div className="relative mb-8">
-        <div className="w-32 h-32 bg-amber-400 rounded-full flex items-center justify-center text-black">
-            <Sword size={60} />
-        </div>
-        <div className="absolute -top-4 -right-4 w-12 h-12 bg-black border-2 border-amber-400 rounded-xl flex items-center justify-center text-amber-400 font-black italic text-xl">
-            #{rank}
-        </div>
-    </div>
-);
-
-export default PkBattleRoom;
+}

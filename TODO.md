@@ -10,7 +10,10 @@ This document tracks the changes made to implement the "Glassmorphism + Neumorph
 - [x] **Sea Blue Dispersion**: Added cyan internal glows to match the high-end crystal blend from reference images.
 - [x] **Total Clarity**: Removed all blur and background opacity for a 100% see-through crystal effect.
 - [x] Applied to Main Navigation (`src/App.tsx`)
-- [x] Applied to Live Streaming Controls (`src/pages/Live.jsx`)
+- [x] Applied to Live Streaming Controls (`src/pages/Live.tsx`)
+- [x] Applied to ForYouPage (`src/pages/ForYouPage.tsx`)
+- [x] Applied to Home Page (`src/pages/Home.tsx`)
+- [x] Applied to Bottom Navigation (`src/components/BottomNav.tsx`)
 - [x] Replaced all standard pink buttons with Crystal/Cyan theme to match the reference.
 
 ## Reversion Steps

@@ -38,6 +38,43 @@ export const updatePKScore = async (battleId: string, hostId: string, points: nu
   const battle = await updateScoreInDb(battleId, hostId, points);
   if (battle) {
     io.to((battle as any).room_id).emit("pk_update", battle);
+    // User requested compatibility
+    io.to((battle as any).room_id).emit("pk-live-update", {
+      scoreA: (battle as any).score_a,
+      scoreB: (battle as any).score_b,
+      roomId: (battle as any).room_id,
+      battleId,
+      hostId,
+      points
+    });
+  }
+};
+
+export const updatePKScoreRoute = async (req: any, res: any, io: Server) => {
+  const { battleId, team, amount } = req.body;
+  try {
+    const battle = db.prepare("SELECT * FROM pk_battles WHERE id = ?").get(battleId) as any;
+    if (!battle) return res.status(404).json({ error: "Battle not found" });
+
+    const hostId = team === "A" ? battle.host_a : battle.host_b;
+    const updatedBattle = await updateScoreInDb(battleId, hostId, amount);
+    
+    if (updatedBattle) {
+      io.to((updatedBattle as any).room_id).emit("pk_update", updatedBattle);
+      // Compatibility with user requested event
+      io.to((updatedBattle as any).room_id).emit("pk-live-update", {
+        battleId,
+        scoreA: (updatedBattle as any).score_a,
+        scoreB: (updatedBattle as any).score_b,
+        roomId: (updatedBattle as any).room_id,
+        timeLeft: (updatedBattle as any).duration - Math.floor((Date.now() - new Date((updatedBattle as any).started_at).getTime()) / 1000)
+      });
+      res.json({ success: true, battle: updatedBattle });
+    } else {
+      res.status(500).json({ error: "Failed to update score" });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 };
 

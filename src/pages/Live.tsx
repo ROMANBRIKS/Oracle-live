@@ -59,7 +59,16 @@ const Live: React.FC<LiveProps> = ({ userId: hostId }) => {
     socket.emit("join-room", roomId);
 
     const handlePKUpdate = (data: any) => {
-        setPkBattle(data);
+        // Handle both raw DB object and socket payload
+        const normalized = {
+            active: true,
+            score1: data.score_a ?? data.scoreA ?? 0,
+            score2: data.score_b ?? data.scoreB ?? 0,
+            host1: data.host_a ?? data.hostA ?? "Host A",
+            host2: data.host_b ?? data.hostB ?? "Host B",
+            timeLeft: data.time_left ?? data.timeLeft ?? 300
+        };
+        setPkBattle(normalized);
     };
 
     const handlePKEnd = (result: any) => {
@@ -110,17 +119,18 @@ const Live: React.FC<LiveProps> = ({ userId: hostId }) => {
       const channelName = `room_${hostId}`;
       const uid = Math.floor(Math.random() * 10000);
       
-      const { data } = await axios.post("/api/agora/generate-token", {
+      const { data } = await axios.post("/api/agora/token", {
         channelName,
         uid,
-        role: role === "host" ? "publisher" : "subscriber"
+        role: role === "host" ? "host" : "audience"
       });
 
-      if (data.token === "DEVELOPMENT_TOKEN") {
-         console.warn("Using DEVELOPMENT_TOKEN for Agora. Video will only work if keys are set.");
+      if (data.isDemo) {
+         console.warn("Agora is in DEMO MODE. Ensure AGORA_APP_ID and AGORA_APP_CERT are set in .env");
       }
 
-      await client.join(APP_ID || "MOCK_APP_ID", channelName, data.token, uid);
+      const appIdToUse = APP_ID || "MOCK_APP_ID";
+      await client.join(appIdToUse, channelName, data.token, uid);
 
       if (role === "host") {
         const videoTrack = await AgoraRTC.createCameraVideoTrack();
@@ -176,11 +186,22 @@ const Live: React.FC<LiveProps> = ({ userId: hostId }) => {
 
   const sendGift = async (giftType: string) => {
     if (!currentUser) return;
+    
+    // Map gift types to IDs from the backend seeder
+    const giftIdMap: Record<string, string> = {
+      'rose': 'g1',
+      'lion': 'g2',
+      'car': 'g4' // Hypercar in UI, mapped to Rocket/Car in logic
+    };
+
     try {
-        await axios.post("/api/send-gift", {
-            userId: currentUser.id,
-            giftType,
-            side: 1 // Default to host side for now
+        await axios.post("/api/gifts/send", {
+            senderId: currentUser.id,
+            receiverId: hostId,
+            roomId: roomId,
+            giftId: giftIdMap[giftType] || 'g1',
+            quantity: 1,
+            battleId: pkBattle?.id // If in a PK battle, the ID will allow score updates
         });
         socket.emit("gift-sent", {
             giftType,
@@ -217,27 +238,27 @@ const Live: React.FC<LiveProps> = ({ userId: hostId }) => {
   };
 
   return (
-    <div className="relative w-full h-full bg-black overflow-hidden select-none font-sans">
+    <div className="relative w-full h-full bg-crystal-void overflow-hidden select-none font-sans">
       {/* 🎥 VIDEO GRID / PLAYER */}
       <div className="absolute inset-0 bg-transparent z-0 grid grid-cols-2 grid-rows-2 gap-1 p-0.5">
         {/* PRIMARY PLAYER (RTC for Host, HLS for Audience) */}
-        <div className="relative bg-zinc-950 rounded-2xl overflow-hidden border border-white/5 shadow-2xl col-span-2 row-span-2">
+        <div className="relative bg-black rounded-3xl overflow-hidden border border-white/5 shadow-2xl col-span-2 row-span-2">
           {((currentUser?.username === hostId) || isHost) ? (
             <div ref={localVideoRef} className="w-full h-full object-cover"></div>
           ) : (
             <HLSPlayer streamUrl="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8" />
           )}
-          <div className="absolute bottom-4 left-4 bg-black/40 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
-            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-            <span className="text-[10px] font-black text-white italic uppercase tracking-widest">{hostId} (Primary)</span>
+          <div className="absolute bottom-6 left-6 liquid-glass px-6 py-2 rounded-2xl border border-white/10 flex items-center gap-3">
+            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,211,238,1)]"></div>
+            <span className="text-[10px] font-black text-white italic uppercase tracking-[0.2em] drop-shadow-md">{hostId} (MASTER_FEED)</span>
           </div>
         </div>
 
-        {/* GUESTS / REMOTE USERS (Only visible if we are in RTC mode/Host side for now) */}
+        {/* GUESTS / REMOTE USERS */}
         {((currentUser?.username === hostId) || isHost) && remoteUsers.length > 0 && (
-            <div className="absolute top-24 right-6 w-32 flex flex-col gap-2 z-20">
+            <div className="absolute top-28 right-8 w-40 flex flex-col gap-4 z-20">
                 {remoteUsers.map((user, i) => (
-                    <div key={i} className="aspect-video bg-zinc-900 rounded-xl overflow-hidden border border-white/10 shadow-2xl">
+                    <div key={i} className="aspect-square bg-black/40 backdrop-blur-xl rounded-[2rem] overflow-hidden border border-white/10 shadow-2xl">
                         <RemotePlayer user={user} />
                     </div>
                 ))}
@@ -246,44 +267,46 @@ const Live: React.FC<LiveProps> = ({ userId: hostId }) => {
       </div>
 
       {/* VIGNETTE OVERLAY */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40 pointer-events-none z-10" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/60 pointer-events-none z-10" />
 
-      {/* 👑 OVERLAYS (Extracted from previous polished UI) */}
-      <div className="absolute top-8 left-6 right-6 flex justify-between items-start z-50 pointer-events-none">
-           <div className="flex flex-col gap-3">
+      {/* 👑 OVERLAYS */}
+      <div className="absolute top-10 left-8 right-8 flex justify-between items-start z-50 pointer-events-none">
+           <div className="flex flex-col gap-4">
                 <motion.div 
                     initial={{ x: -50, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
-                    className="flex items-center gap-3 bg-black/20 backdrop-blur-3xl border border-white/10 p-1.5 pr-5 rounded-full pointer-events-auto cursor-pointer group"
+                    className="flex items-center gap-4 liquid-glass p-2 pr-6 rounded-[3rem] border border-white/10 pointer-events-auto cursor-pointer group shadow-2xl"
                 >
                     <div className="relative">
                         <img 
-                          src={`https://i.pravatar.cc/100?u=${hostId}`} 
-                          className="w-11 h-11 rounded-full border-2 border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.4)]" 
+                          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${hostId}`} 
+                          className="w-12 h-12 rounded-[1.5rem] border-2 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.5)] bg-black" 
                           alt="host"
                           loading="lazy"
                         />
-                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black" />
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-lg border-2 border-black flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                        </div>
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-xs font-black text-white italic tracking-tight uppercase group-hover:text-cyan-400 transition-colors">@{hostId}</span>
-                        <div className="mt-1">
+                        <span className="text-sm font-black text-white italic tracking-tighter uppercase group-hover:text-cyan-400 transition-colors">@{hostId}</span>
+                        <div className="mt-0.5">
                             <ViewerCounter roomId={roomId} />
                         </div>
                     </div>
-                    <button className="ml-4 bg-cyan-400 text-black text-[9px] font-black px-4 py-2 rounded-full uppercase tracking-widest transition-all hover:scale-105 active:scale-95 italic shadow-[0_0_15px_rgba(34,211,238,0.3)]">
+                    <button className="ml-6 bg-cyan-400 text-black text-[10px] font-black px-6 py-2.5 rounded-2xl uppercase tracking-widest transition-all hover:scale-105 active:scale-95 italic shadow-[0_0_25px_rgba(34,211,238,0.4)]">
                         FOLLOW
                     </button>
                 </motion.div>
            </div>
            
-           <div className="flex flex-col items-end gap-2">
-                <div className="bg-rose-600 px-4 py-1.5 rounded-full shadow-[0_0_20px_rgba(225,29,72,0.4)] flex items-center gap-2 border border-white/20 animate-pulse">
-                    <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                    <span className="text-[10px] font-black text-white italic tracking-[0.2em] uppercase">LIVE</span>
+           <div className="flex flex-col items-end gap-3">
+                <div className="bg-rose-600 px-6 py-2.5 rounded-2xl shadow-[0_0_30px_rgba(225,29,72,0.5)] flex items-center gap-3 border border-white/20">
+                    <div className="w-2 h-2 bg-white rounded-full animate-pulse shadow-[0_0_8px_white]" />
+                    <span className="text-[10px] font-black text-white italic tracking-[0.3em] uppercase">LINK_ACTIVE</span>
                 </div>
-                <div className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-xl border border-white/5 text-[9px] font-black text-white/50 tracking-widest italic">
-                    ID: {Math.floor(Math.random() * 900000) + 100000}
+                <div className="liquid-glass px-4 py-1.5 rounded-xl border border-white/5 text-[9px] font-black text-white/30 tracking-[0.4em] italic uppercase">
+                    SYS_ID: {Math.floor(Math.random() * 900000) + 100000}
                 </div>
            </div>
       </div>
@@ -294,7 +317,7 @@ const Live: React.FC<LiveProps> = ({ userId: hostId }) => {
       {/* PK BATTLE BAR */}
       <AnimatePresence>
           {pkBattle?.active && (
-              <div className="absolute top-32 left-6 right-6 z-40 pointer-events-none">
+              <div className="absolute top-36 left-8 right-8 z-40 pointer-events-none">
                   <PKScoreBar 
                     score1={pkBattle.score1} 
                     score2={pkBattle.score2} 
@@ -314,34 +337,39 @@ const Live: React.FC<LiveProps> = ({ userId: hostId }) => {
                 exit={{ scale: 2, opacity: 0 }}
                 className="absolute inset-0 flex items-center justify-center z-[70] pointer-events-none"
               >
-                  <div className="bg-yellow-500 text-black p-10 rounded-[4rem] border-8 border-white shadow-[0_0_100px_rgba(234,179,8,0.8)] flex flex-col items-center gap-4">
-                      <h2 className="text-4xl font-black italic uppercase tracking-tighter">VICTORY</h2>
-                      <p className="text-2xl font-black uppercase tracking-widest">@{pkWinner}</p>
+                  <div className="crystal-glass p-16 rounded-[4rem] border-cyan-400 shadow-[0_0_150px_rgba(34,211,238,0.6)] flex flex-col items-center gap-6">
+                      <div className="w-20 h-20 bg-cyan-400 rounded-[2rem] flex items-center justify-center shadow-2xl">
+                          <Swords size={40} className="text-black" />
+                      </div>
+                      <div className="text-center">
+                        <h2 className="text-5xl font-black italic uppercase tracking-[0.1em] text-cyan-400">VICTORY</h2>
+                        <p className="text-2xl font-black uppercase tracking-[0.3em] text-white mt-2">@{pkWinner}</p>
+                      </div>
                   </div>
               </motion.div>
           )}
       </AnimatePresence>
 
       {/* CHAT FEED */}
-      <div className="absolute bottom-32 left-6 right-6 h-[40vh] z-30 pointer-events-none">
+      <div className="absolute bottom-36 left-8 right-8 h-[35vh] z-30 pointer-events-none">
           <div className="w-full max-w-[320px] h-full pointer-events-auto">
               <LiveChat roomId={roomId} isHost={isHost} />
           </div>
       </div>
 
       {/* CONTROLS */}
-      <div className="absolute bottom-8 left-6 right-6 z-50 flex items-center gap-4 pointer-events-none">
+      <div className="absolute bottom-10 left-8 right-8 z-50 flex items-center gap-5 pointer-events-none">
           {isHost && !joined ? (
             <button 
               onClick={() => joinStream("host")}
-              className="flex-1 bg-cyan-400 hover:bg-cyan-300 py-4 rounded-2xl text-black font-black uppercase italic tracking-widest shadow-[0_0_30px_rgba(34,211,238,0.5)] pointer-events-auto transition-all animate-pulse"
+              className="flex-1 bg-cyan-400 hover:bg-cyan-300 py-5 rounded-3xl text-black font-black uppercase italic tracking-[0.2em] shadow-[0_0_40px_rgba(34,211,238,0.6)] pointer-events-auto transition-all animate-pulse"
             >
-              🎥 Launch Stream
+              LAUNCH NEURAL BROADCAST
             </button>
           ) : isHost && !pkBattle?.active ? (
             <button 
                 onClick={startPK}
-                className="w-16 h-16 bg-red-600 crystal-button transition-all pointer-events-auto rounded-[1.5rem] flex items-center justify-center text-white hover:bg-red-500 shadow-2xl"
+                className="w-16 h-16 crystal-button bg-rose-600 border-none transition-all pointer-events-auto flex items-center justify-center text-white hover:bg-rose-500 shadow-[0_0_30px_rgba(225,29,72,0.4)]"
             >
                 <Swords size={28} />
             </button>
@@ -349,40 +377,40 @@ const Live: React.FC<LiveProps> = ({ userId: hostId }) => {
 
           {(!isHost || joined) && (
             <div className="flex-1 relative group pointer-events-auto">
-                  <div className="absolute inset-0 bg-white/5 backdrop-blur-3xl rounded-3xl border border-white/10 group-focus-within:border-cyan-400/50 transition-all shadow-2xl" />
+                  <div className="absolute inset-0 liquid-glass rounded-[2rem] border border-white/10 group-focus-within:border-cyan-400/50 transition-all shadow-2xl backdrop-blur-3xl" />
                   <input
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                      placeholder="Speak to the world..."
-                      className="w-full bg-transparent relative z-10 py-5 px-6 text-sm text-white font-black placeholder-white/20 focus:outline-none italic uppercase tracking-tight"
+                      placeholder="SYNCHRONIZE THOUGHTS..."
+                      className="w-full bg-transparent relative z-10 py-6 px-8 text-sm text-white font-black placeholder:text-white/20 focus:outline-none italic uppercase tracking-widest"
                   />
                   <button 
                       onClick={sendMessage}
-                      className="absolute right-3 top-2 bottom-2 bg-cyan-400 hover:bg-cyan-300 px-6 rounded-2xl text-black shadow-lg transition-all active:scale-95 flex items-center justify-center z-20 shadow-[0_0_20px_rgba(34,211,238,0.4)]"
+                      className="absolute right-3 top-3 bottom-3 bg-cyan-400 hover:bg-cyan-300 px-8 rounded-2xl text-black shadow-lg transition-all active:scale-95 flex items-center justify-center z-20 shadow-[0_0_20px_rgba(34,211,238,0.4)]"
                   >
-                      <Send size={20} />
+                      <Send size={20} className="fill-current" />
                   </button>
             </div>
           )}
 
           <button 
                 onClick={() => setShowGifts(!showGifts)}
-                className={`w-16 h-16 crystal-button transition-all pointer-events-auto rounded-[1.5rem] flex items-center justify-center ${showGifts ? 'bg-cyan-400 text-black shadow-[0_0_30px_rgba(34,211,238,0.5)] scale-110' : 'border-white/20 text-white hover:bg-white/10 shadow-2xl'}`}
+                className={`w-16 h-16 crystal-button transition-all pointer-events-auto flex items-center justify-center shadow-2xl ${showGifts ? 'bg-cyan-400 text-black shadow-[0_0_40px_rgba(34,211,238,0.6)] scale-110 border-none' : 'border-white/10 text-white/40 hover:text-white hover:border-white/20'}`}
           >
                 <Gift size={28} />
           </button>
 
           <button 
                 onClick={handleShare}
-                className="w-16 h-16 liquid-glass transition-all pointer-events-auto rounded-[1.5rem] flex items-center justify-center text-white hover:bg-white/10 shadow-2xl"
+                className="w-16 h-16 crystal-button border-white/10 text-white/40 hover:text-white hover:border-white/20 transition-all pointer-events-auto flex items-center justify-center shadow-2xl"
           >
                 <Share2 size={28} />
           </button>
 
           <button 
                 onClick={leaveChannel}
-                className="w-16 h-16 crystal-button border-red-500/30 text-red-500 hover:bg-red-500 hover:text-white transition-all pointer-events-auto rounded-[1.5rem] flex items-center justify-center shadow-2xl"
+                className="w-16 h-16 crystal-button border-rose-500/30 text-rose-500 hover:bg-rose-500 hover:text-white transition-all pointer-events-auto flex items-center justify-center shadow-2xl"
           >
                 <PhoneOff size={28} />
           </button>
@@ -395,25 +423,25 @@ const Live: React.FC<LiveProps> = ({ userId: hostId }) => {
             <motion.div 
                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                onClick={() => setShowGifts(false)}
-               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+               className="absolute inset-0 bg-black/60 backdrop-blur-md"
             />
             <motion.div 
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="relative bg-zinc-950 border-t border-white/10 p-8 rounded-t-[3.5rem] shadow-[0_-30px_80px_rgba(0,0,0,0.9)] max-h-[70vh] overflow-y-auto"
+              transition={{ type: "spring", damping: 30, stiffness: 200 }}
+              className="relative liquid-glass border-t border-white/10 p-10 rounded-t-[4rem] shadow-[0_-40px_100px_rgba(0,0,0,0.9)] max-h-[75vh] overflow-y-auto"
             >
-              <div className="flex justify-between items-center mb-10">
+              <div className="flex justify-between items-center mb-12">
                 <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-cyan-400 italic tracking-[0.3em] uppercase">Wallet Status</span>
-                    <h4 className="text-xl font-black italic uppercase text-white tracking-tighter">Support the Host</h4>
+                    <span className="text-[10px] font-black text-cyan-400 italic tracking-[0.5em] uppercase">SYSTEM_TRIBUTES</span>
+                    <h4 className="text-3xl font-black italic uppercase text-white tracking-tighter mt-1">Refuel the Oracle</h4>
                 </div>
-                <div className="flex items-center gap-3 bg-yellow-500/10 px-5 py-2.5 rounded-2xl border border-yellow-500/30 shadow-[0_0_20px_rgba(234,179,8,0.2)]">
-                   <CoinsIcon size={18} className="text-yellow-500" />
-                   <span className="text-lg font-black text-yellow-500 italic tracking-tighter">{currentUser?.coins || 0}</span>
+                <div className="flex items-center gap-4 crystal-pill px-8 py-3.5 border-white/10 shadow-[0_0_30px_rgba(234,179,8,0.15)] bg-yellow-500/5">
+                   <CoinsIcon size={22} className="text-yellow-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]" />
+                   <span className="text-2xl font-black text-yellow-500 italic tracking-tighter">{currentUser?.coins || 0}</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 gap-8">
                 {[
                   { type: 'rose', icon: '🌹', cost: 10, label: 'Crystal Rose' },
                   { type: 'lion', icon: '🦁', cost: 500, label: 'Neon Lion' },
@@ -422,18 +450,23 @@ const Live: React.FC<LiveProps> = ({ userId: hostId }) => {
                   <button 
                     key={gift.type}
                     onClick={() => sendGift(gift.type)}
-                    className="flex flex-col items-center gap-4 p-5 py-8 bg-white/5 hover:bg-cyan-400/10 rounded-[2.5rem] border border-white/5 hover:border-cyan-400/50 transition-all active:scale-95 group"
+                    className="flex flex-col items-center gap-6 p-6 py-12 bg-white/5 hover:bg-cyan-400 text-white hover:text-black rounded-[3.5rem] border border-white/5 hover:border-none transition-all duration-500 active:scale-95 group relative overflow-hidden shadow-2xl"
                   >
-                    <span className="text-5xl transform group-hover:scale-125 transition-transform duration-700 filter drop-shadow-2xl">{gift.icon}</span>
-                    <div className="text-center space-y-1">
-                      <p className="text-[10px] font-black text-white/90 uppercase tracking-widest italic">{gift.label}</p>
-                      <div className="flex items-center gap-1.5 justify-center">
-                        <CoinsIcon size={12} className="text-yellow-500" />
-                        <span className="text-[12px] font-black text-yellow-500 italic">{gift.cost}</span>
+                    <span className="text-7xl transform group-hover:scale-125 transition-transform duration-700 filter group-hover:brightness-150 drop-shadow-2xl z-10">{gift.icon}</span>
+                    <div className="text-center space-y-2 relative z-10">
+                      <p className="text-[11px] font-black uppercase tracking-[0.2em] italic opacity-60 group-hover:opacity-100">{gift.label}</p>
+                      <div className="flex items-center gap-2 justify-center">
+                        <CoinsIcon size={14} className="group-hover:text-black transition-colors" />
+                        <span className="text-[16px] font-black italic tracking-tighter">{gift.cost}</span>
                       </div>
                     </div>
+                    {/* Background Glow on Hover */}
+                    <div className="absolute inset-x-0 bottom-0 h-0 group-hover:h-full bg-cyan-400 transition-all duration-500 -z-0" />
                   </button>
                 ))}
+              </div>
+              <div className="mt-12 p-6 bg-white/[0.03] rounded-3xl text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 italic">Transaction Protocol: SECURE_ENCRYPTION_V4</p>
               </div>
             </motion.div>
           </div>

@@ -49,128 +49,147 @@ function CreatorDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-black">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
+      <div className="flex items-center justify-center h-screen bg-crystal-void">
+        <div className="w-12 h-12 border-4 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 pb-24 font-sans ring-1 ring-zinc-800">
+    <div className="min-h-screen bg-crystal-void text-white p-6 pb-32 font-sans relative overflow-x-hidden">
+      {/* Background Decorative Blur */}
+      <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-cyan-500/10 to-transparent pointer-events-none z-0" />
+      
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-4xl mx-auto"
+        className="max-w-5xl mx-auto relative z-10"
       >
-        <div className="flex items-center gap-3 mb-8">
-          <div className="p-3 bg-pink-500/10 rounded-2xl">
-            <BarChart3 className="text-pink-500 w-8 h-8" />
+        <div className="flex flex-col md:flex-row items-center gap-6 mb-12">
+          <div className="w-20 h-20 crystal-button shadow-cyan-400/20 shrink-0">
+            <BarChart3 className="text-cyan-400 w-10 h-10" />
           </div>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold tracking-tight">Creator Dashboard</h1>
-            <p className="text-zinc-500 text-sm">Monitor your channel's growth and performance</p>
+          <div className="flex-1 text-center md:text-left">
+            <h1 className="text-4xl font-black italic tracking-tighter uppercase leading-[0.9]">Creator <br /> <span className="text-cyan-400">Command</span></h1>
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 mt-2 italic">Neural Analytics & Growth Engine</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-4">
             <button 
               onClick={() => navigate("/creator/analytics")}
-              className="bg-zinc-900 border border-zinc-800 p-3 rounded-2xl hover:bg-zinc-800 transition-all group"
+              className="w-14 h-14 crystal-button group"
               title="Full Analytics"
             >
-              <PieChart size={20} className="text-zinc-400 group-hover:text-cyan-400" />
+              <PieChart size={20} className="text-white/40 group-hover:text-cyan-400 transition-colors" />
             </button>
             <button 
               onClick={() => navigate("/creator/revenue")}
-              className="bg-zinc-900 border border-zinc-800 p-3 rounded-2xl hover:bg-zinc-800 transition-all group"
+              className="w-14 h-14 crystal-button group"
               title="Revenue Center"
             >
-              <Landmark size={20} className="text-zinc-400 group-hover:text-emerald-400" />
+              <Landmark size={20} className="text-white/40 group-hover:text-cyan-400 transition-colors" />
             </button>
             <button 
               onClick={() => navigate("/creator/clips")}
-              className="bg-zinc-900 border border-zinc-800 p-3 rounded-2xl hover:bg-zinc-800 transition-all group"
+              className="w-14 h-14 crystal-button group"
               title="Clips Archive"
             >
-              <Film size={20} className="text-zinc-400 group-hover:text-pink-400" />
+              <Film size={20} className="text-white/40 group-hover:text-cyan-400 transition-colors" />
             </button>
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        {/* Summary bento grid */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
           {[
-            { label: "Total Views", value: totals.views, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-            { label: "Earnings", value: `$${totals.earnings}`, icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
-            { label: "Followers", value: `+${totals.followers}`, icon: TrendingUp, color: "text-purple-500", bg: "bg-purple-500/10" },
-            { label: "Gifts Recv", value: totals.gifts, icon: Gift, color: "text-pink-500", bg: "bg-pink-500/10" },
+            { label: "Total Reach", value: totals.views.toLocaleString(), icon: Users, color: "text-white" },
+            { label: "Reserve Pool", value: `$${totals.earnings}`, icon: DollarSign, color: "text-cyan-400" },
+            { label: "Neural Growth", value: `+${totals.followers}`, icon: TrendingUp, color: "text-white" },
+            { label: "Tributes", value: totals.gifts, icon: Gift, color: "text-cyan-400" },
           ].map((card, i) => (
             <motion.div
               key={card.label}
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: i * 0.1 }}
-              className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-3xl"
+              className="crystal-glass p-8 rounded-[3rem] relative overflow-hidden group"
             >
-              <div className={`p-2 w-fit rounded-xl ${card.bg} mb-3`}>
-                <card.icon className={`w-5 h-5 ${card.color}`} />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-6">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 italic">{card.label}</p>
+                    <card.icon className={`w-4 h-4 text-white/10 group-hover:${card.color} transition-colors`} />
+                </div>
+                <h3 className={`text-3xl font-black italic tracking-tighter ${card.color}`}>{card.value}</h3>
               </div>
-              <h3 className="text-2xl font-bold">{card.value}</h3>
-              <p className="text-zinc-500 text-xs mt-1 uppercase tracking-wider font-semibold">{card.label}</p>
+              <div className="absolute -bottom-4 -right-4 opacity-5 group-hover:scale-110 transition-transform duration-700 pointer-events-none">
+                <card.icon size={80} />
+              </div>
             </motion.div>
           ))}
         </div>
 
-        {/* Stream History */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between mb-2 px-2">
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-zinc-400" />
-              Stream History
-            </h2>
-            <button className="text-pink-500 text-xs font-bold hover:underline">View All</button>
+        {/* Transmission log history */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between mb-4 px-4">
+            <div className="flex flex-col">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.5em] text-white/30 italic flex items-center gap-3">
+                <Calendar size={14} className="text-cyan-400" />
+                Transmission History
+                </h2>
+                <div className="h-0.5 w-8 bg-cyan-400/30 mt-2" />
+            </div>
+            <button className="text-[9px] font-black uppercase tracking-widest text-cyan-400/50 hover:text-cyan-400 transition-all italic">Protocol Archive</button>
           </div>
 
-          {stats.length === 0 ? (
-            <div className="bg-zinc-900/30 border border-dashed border-zinc-800 rounded-3xl p-12 text-center">
-              <p className="text-zinc-500 italic">No stream records found yet.</p>
-            </div>
-          ) : (
-            stats.map((stream, idx) => (
-              <motion.div
-                key={stream.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                className="group bg-zinc-900/80 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-all p-5 rounded-3xl flex items-center justify-between"
-              >
-                <div className="flex gap-6">
-                  <div className="space-y-1">
-                    <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Views</p>
-                    <p className="font-bold flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-zinc-400" /> {stream.total_viewers}
-                    </p>
+          <div className="space-y-4">
+            {stats.length === 0 ? (
+              <div className="crystal-glass rounded-[3rem] p-16 text-center border border-dashed border-white/10">
+                <p className="text-white/20 font-black uppercase tracking-[0.3em] text-[10px] italic">No active data transmissions recorded.</p>
+              </div>
+            ) : (
+              stats.map((stream, idx) => (
+                <motion.div
+                  key={stream.id}
+                  initial={{ opacity: 0, x: -30 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="crystal-glass p-8 rounded-[2.5rem] flex items-center justify-between group hover:bg-white/5 transition-all duration-300"
+                >
+                  <div className="flex flex-wrap gap-12">
+                    <div className="space-y-2">
+                      <p className="text-white/20 text-[9px] uppercase font-black tracking-[0.2em] italic">Reach</p>
+                      <p className="text-xl font-black italic tracking-tighter flex items-center gap-3 text-white">
+                        <Users className="w-5 h-5 text-cyan-400" /> {stream.total_viewers}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-white/20 text-[9px] uppercase font-black tracking-[0.2em] italic">Net Value</p>
+                      <p className="text-xl font-black italic tracking-tighter flex items-center gap-3 text-cyan-400">
+                        <DollarSign className="w-5 h-5" /> {stream.total_coins}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-white/20 text-[9px] uppercase font-black tracking-[0.2em] italic">Ascension</p>
+                      <p className="text-xl font-black italic tracking-tighter flex items-center gap-3 text-white">
+                        <TrendingUp className="w-5 h-5 text-cyan-400" /> +{stream.new_followers}
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Coins</p>
-                    <p className="font-bold text-green-500 flex items-center gap-1.5">
-                      <DollarSign className="w-4 h-4" /> {stream.total_coins}
-                    </p>
+                  <div className="text-right flex items-center gap-6">
+                    <div className="hidden md:flex flex-col items-end">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/20 italic mb-1">timestamp</p>
+                        <p className="text-sm font-black italic tracking-tighter text-white/60">
+                            {new Date(stream.created_at).toLocaleDateString()}
+                        </p>
+                    </div>
+                    <div className="w-12 h-12 crystal-button group-hover:bg-cyan-400 group-hover:text-black transition-all">
+                        <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Growth</p>
-                    <p className="font-bold text-purple-500 flex items-center gap-1.5">
-                      <TrendingUp className="w-4 h-4" /> +{stream.new_followers}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-zinc-500 text-xs mb-1">
-                    {new Date(stream.created_at).toLocaleDateString()}
-                  </p>
-                  <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-pink-500 transition-colors ml-auto" />
-                </div>
-              </motion.div>
-            ))
-          )}
+                </motion.div>
+              ))
+            )}
+          </div>
         </div>
       </motion.div>
     </div>
